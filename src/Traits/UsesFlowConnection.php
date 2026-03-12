@@ -11,7 +11,7 @@ trait UsesFlowConnection
         return config('flow.connection') ?? parent::getConnectionName();
     }
 
-    protected function getTable(): string
+    public function getTable(): string
     {
         $prefix = config('flow.table_prefix', 'flow_');
         $base = property_exists($this, 'flowTableBaseName') ? $this->flowTableBaseName : $this->guessFlowTableName();
