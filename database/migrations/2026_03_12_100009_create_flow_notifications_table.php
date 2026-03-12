@@ -17,7 +17,7 @@ return new class extends Migration
     {
         $configStepsTable = $this->prefix.'config_steps';
 
-        Schema::connection(config('flow.connection'))->create($this->prefix.'notifications', function (Blueprint $table) use ($configStepsTable) {
+        Schema::connection(config('flow.connection'))->create($this->prefix.'notifications', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->ulid('user_id');
             $table->string('notifiable_type');

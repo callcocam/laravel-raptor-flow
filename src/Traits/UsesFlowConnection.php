@@ -2,6 +2,8 @@
 
 namespace Callcocam\LaravelRaptorFlow\Traits;
 
+use Illuminate\Support\Str;
+
 trait UsesFlowConnection
 {
     public function getConnectionName(): ?string
@@ -22,6 +24,6 @@ trait UsesFlowConnection
         $name = class_basename($this);
         $name = preg_replace('/^Flow/', '', $name);
 
-        return \Illuminate\Support\Str::snake(\Illuminate\Support\Str::plural($name));
+        return Str::snake(Str::plural($name));
     }
 }

@@ -4,6 +4,7 @@ namespace Callcocam\LaravelRaptorFlow\Traits;
 
 use Callcocam\LaravelRaptorFlow\Contracts\Workable;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
+use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 trait HasWorkflow
 {
@@ -20,7 +21,7 @@ trait HasWorkflow
     /**
      * Execuções de workflow em que este model é o workable.
      */
-    public function workflowExecutions(): \Illuminate\Database\Eloquent\Relations\MorphMany
+    public function workflowExecutions(): MorphMany
     {
         return $this->morphMany(FlowExecution::class, 'workable');
     }

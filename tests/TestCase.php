@@ -2,9 +2,9 @@
 
 namespace Callcocam\LaravelRaptorFlow\Tests;
 
+use Callcocam\LaravelRaptorFlow\LaravelRaptorFlowServiceProvider;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Orchestra\Testbench\TestCase as Orchestra;
-use Callcocam\LaravelRaptorFlow\LaravelRaptorFlowServiceProvider;
 
 class TestCase extends Orchestra
 {

@@ -6,7 +6,6 @@ use Callcocam\LaravelRaptorFlow\Contracts\Workable;
 use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
 use Callcocam\LaravelRaptorFlow\Models\FlowConfig;
 use Callcocam\LaravelRaptorFlow\Models\FlowConfigStep;
-use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Callcocam\LaravelRaptorFlow\Models\FlowPreset;
 use Callcocam\LaravelRaptorFlow\Models\FlowStepTemplate;
 

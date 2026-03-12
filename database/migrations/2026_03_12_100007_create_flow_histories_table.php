@@ -17,7 +17,7 @@ return new class extends Migration
     {
         $configStepsTable = $this->prefix.'config_steps';
 
-        Schema::connection(config('flow.connection'))->create($this->prefix.'histories', function (Blueprint $table) use ($configStepsTable) {
+        Schema::connection(config('flow.connection'))->create($this->prefix.'histories', function (Blueprint $table) {
             $table->ulid('id')->primary();
             $table->string('workable_type');
             $table->ulid('workable_id');

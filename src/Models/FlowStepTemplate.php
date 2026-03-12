@@ -5,6 +5,7 @@ namespace Callcocam\LaravelRaptorFlow\Models;
 use Callcocam\LaravelRaptorFlow\Traits\UsesFlowConnection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FlowStepTemplate extends Model
@@ -42,12 +43,12 @@ class FlowStepTemplate extends Model
         ];
     }
 
-    public function presetSteps(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function presetSteps(): HasMany
     {
         return $this->hasMany(FlowPresetStep::class, 'workflow_step_template_id');
     }
 
-    public function configSteps(): \Illuminate\Database\Eloquent\Relations\HasMany
+    public function configSteps(): HasMany
     {
         return $this->hasMany(FlowConfigStep::class, 'flow_step_template_id');
     }
