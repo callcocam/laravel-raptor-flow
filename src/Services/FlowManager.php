@@ -266,6 +266,8 @@ class FlowManager
             ]);
         }
 
+        $this->validateCanMoveToStep($fromStep, $toStep);
+
         $durationMinutes = null;
         if ($execution->started_at) {
             $durationMinutes = (int) now()->diffInMinutes($execution->started_at);
@@ -310,6 +312,234 @@ class FlowManager
             'notes' => $notes,
             'snapshot' => $snapshotBefore,
         ]);
+
+        return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
+    /**
+     * Valida se é permitido mover da etapa atual para a de destino (não pular etapas obrigatórias).
+     */
+    protected function validateCanMoveToStep(FlowConfigStep $fromStep, FlowConfigStep $toStep): void
+    {
+        $config = $fromStep->config;
+        if (! $config) {
+            return;
+        }
+
+        $fromOrder = (int) $fromStep->order;
+        $toOrder = (int) $toStep->order;
+        if ($toOrder <= $fromOrder) {
+            return;
+        }
+
+        $stepsBetween = $config->steps()
+            ->where('is_active', true)
+            ->where('order', '>', $fromOrder)
+            ->where('order', '<', $toOrder)
+            ->get();
+
+        foreach ($stepsBetween as $step) {
+            if ($step->is_required && ! $step->allow_skip) {
+                throw ValidationException::withMessages([
+                    'to_step' => 'Não é possível pular a etapa obrigatória: '.($step->name ?? 'Etapa').'.',
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Inicia uma execução que está Pendente (transição para Em andamento).
+     * Usado quando o usuário clica em "Iniciar" no Kanban.
+     *
+     * @param  string|int  $startedByUserId
+     */
+    public function startPendingExecution(FlowExecution $execution, string|int $startedByUserId): FlowExecution
+    {
+        if ($execution->status !== FlowStatus::Pending) {
+            throw ValidationException::withMessages([
+                'execution' => 'Apenas execuções pendentes podem ser iniciadas.',
+            ]);
+        }
+
+        $execution->load('configStep');
+        $firstStep = $execution->configStep;
+        if (! $firstStep) {
+            throw ValidationException::withMessages([
+                'execution' => 'Execução sem etapa configurada.',
+            ]);
+        }
+
+        $estimatedDays = (int) ($execution->estimated_duration_days ?? 2);
+        $slaDate = $estimatedDays > 0 ? now()->addDays($estimatedDays) : null;
+
+        $execution->update([
+            'status' => FlowStatus::InProgress,
+            'current_responsible_id' => $startedByUserId,
+            'execution_started_by' => $startedByUserId,
+            'started_at' => now(),
+            'sla_date' => $slaDate,
+        ]);
+
+        FlowHistory::create([
+            'workable_type' => $execution->workable_type,
+            'workable_id' => $execution->workable_id,
+            'flow_config_step_id' => $firstStep->id,
+            'action' => FlowAction::Start,
+            'user_id' => $startedByUserId,
+            'performed_at' => now(),
+            'notes' => 'Workflow iniciado manualmente',
+        ]);
+
+        return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
+    /**
+     * Pausa uma execução em andamento.
+     *
+     * @param  string|int|null  $pausedByUserId
+     */
+    public function pauseExecution(FlowExecution $execution, string|int|null $pausedByUserId = null): FlowExecution
+    {
+        if ($execution->status !== FlowStatus::InProgress) {
+            throw ValidationException::withMessages([
+                'execution' => 'Apenas execuções em andamento podem ser pausadas.',
+            ]);
+        }
+
+        $execution->update([
+            'status' => FlowStatus::Paused,
+            'paused_at' => now(),
+        ]);
+
+        FlowHistory::create([
+            'workable_type' => $execution->workable_type,
+            'workable_id' => $execution->workable_id,
+            'flow_config_step_id' => $execution->flow_config_step_id,
+            'action' => FlowAction::Pause,
+            'user_id' => $pausedByUserId,
+            'performed_at' => now(),
+        ]);
+
+        return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
+    /**
+     * Retoma uma execução pausada.
+     *
+     * @param  string|int|null  $resumedByUserId
+     */
+    public function resumeExecution(FlowExecution $execution, string|int|null $resumedByUserId = null): FlowExecution
+    {
+        if ($execution->status !== FlowStatus::Paused || ! $execution->paused_at) {
+            throw ValidationException::withMessages([
+                'execution' => 'Apenas execuções pausadas podem ser retomadas.',
+            ]);
+        }
+
+        $pausedMinutes = (int) now()->diffInMinutes($execution->paused_at);
+        $totalPaused = (int) ($execution->paused_duration_minutes ?? 0) + $pausedMinutes;
+
+        $execution->update([
+            'status' => FlowStatus::InProgress,
+            'paused_at' => null,
+            'paused_duration_minutes' => $totalPaused,
+        ]);
+
+        FlowHistory::create([
+            'workable_type' => $execution->workable_type,
+            'workable_id' => $execution->workable_id,
+            'flow_config_step_id' => $execution->flow_config_step_id,
+            'action' => FlowAction::Resume,
+            'user_id' => $resumedByUserId,
+            'performed_at' => now(),
+        ]);
+
+        return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
+    /**
+     * Reatribui a execução para outro usuário.
+     *
+     * @param  string|int  $assignedByUserId
+     * @param  string|int  $assignedToUserId
+     */
+    public function assignExecution(FlowExecution $execution, string|int $assignedByUserId, string|int $assignedToUserId, ?string $notes = null): FlowExecution
+    {
+        if (! in_array($execution->status, [FlowStatus::Pending, FlowStatus::InProgress], true)) {
+            throw ValidationException::withMessages([
+                'execution' => 'Apenas execuções pendentes ou em andamento podem ser reatribuídas.',
+            ]);
+        }
+
+        $previousResponsibleId = $execution->current_responsible_id;
+
+        $execution->update([
+            'current_responsible_id' => $assignedToUserId,
+            'execution_started_by' => $execution->execution_started_by ?? $assignedToUserId,
+            'status' => FlowStatus::InProgress,
+            'started_at' => $execution->started_at ?? now(),
+        ]);
+
+        FlowHistory::create([
+            'workable_type' => $execution->workable_type,
+            'workable_id' => $execution->workable_id,
+            'flow_config_step_id' => $execution->flow_config_step_id,
+            'action' => FlowAction::Reassign,
+            'user_id' => $assignedByUserId,
+            'previous_responsible_id' => $previousResponsibleId,
+            'new_responsible_id' => $assignedToUserId,
+            'performed_at' => now(),
+            'notes' => $notes,
+        ]);
+
+        return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
+    /**
+     * Responsável atual abandona a etapa (volta para Pendente para outro assumir).
+     *
+     * @param  string|int  $abandonedByUserId
+     */
+    public function abandonExecution(FlowExecution $execution, string|int $abandonedByUserId): FlowExecution
+    {
+        if ($execution->status !== FlowStatus::InProgress) {
+            throw ValidationException::withMessages([
+                'execution' => 'Apenas execuções em andamento podem ter responsabilidade abandonada.',
+            ]);
+        }
+
+        if ($execution->current_responsible_id != $abandonedByUserId) {
+            throw ValidationException::withMessages([
+                'user_id' => 'Apenas o responsável atual pode abandonar a etapa.',
+            ]);
+        }
+
+        $previousResponsibleId = $execution->current_responsible_id;
+
+        $execution->update([
+            'current_responsible_id' => null,
+            'status' => FlowStatus::Pending,
+        ]);
+
+        FlowHistory::create([
+            'workable_type' => $execution->workable_type,
+            'workable_id' => $execution->workable_id,
+            'flow_config_step_id' => $execution->flow_config_step_id,
+            'action' => FlowAction::Abandon,
+            'user_id' => $abandonedByUserId,
+            'previous_responsible_id' => $previousResponsibleId,
+            'performed_at' => now(),
+        ]);
+
+        return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
+    /**
+     * Atualiza as notas da execução (sem registrar no histórico).
+     */
+    public function updateExecutionNotes(FlowExecution $execution, string $notes): FlowExecution
+    {
+        $execution->update(['notes' => $notes]);
 
         return $execution->fresh(['configStep', 'stepTemplate']);
     }

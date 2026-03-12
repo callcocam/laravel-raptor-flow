@@ -3,8 +3,12 @@
 namespace Callcocam\LaravelRaptorFlow;
 
 use Callcocam\LaravelRaptorFlow\Commands\LaravelRaptorFlowCommand;
+use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
+use Callcocam\LaravelRaptorFlow\Policies\FlowExecutionPolicy;
 use Callcocam\LaravelRaptorFlow\Services\FlowManager;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Spatie\LaravelPackageTools\Package;
 use Spatie\LaravelPackageTools\PackageServiceProvider;
 
@@ -43,5 +47,28 @@ class LaravelRaptorFlowServiceProvider extends PackageServiceProvider
         $this->publishes([
             __DIR__.'/../database/migrations/' => database_path('migrations/clients'),
         ], 'raptor-flow-client-migrations');
+
+        $this->registerFlowRoutes();
+        $this->registerPolicies();
+    }
+
+    protected function registerPolicies(): void
+    {
+        Gate::policy(FlowExecution::class, FlowExecutionPolicy::class);
+    }
+
+    protected function registerFlowRoutes(): void
+    {
+        $prefix = config('flow.route_prefix', 'flow');
+        $middleware = config('flow.route_middleware', ['web', 'auth']);
+        $routeFile = __DIR__.'/../routes/flow.php';
+
+        if (! is_file($routeFile)) {
+            return;
+        }
+
+        Route::middleware($middleware)
+            ->prefix($prefix)
+            ->group($routeFile);
     }
 }

@@ -52,4 +52,33 @@ return [
     |
     */
     'register_raptor_cruds' => env('FLOW_REGISTER_RAPTOR_CRUDS', true),
+
+    /*
+    |--------------------------------------------------------------------------
+    | Rotas de execução (start, move, pause, resume, assign, abandon, notes)
+    |--------------------------------------------------------------------------
+    |
+    | Prefixo das rotas: flow/executions/{execution}/start, move, etc.
+    | Middleware aplicado: web + auth (ajuste em route_middleware se precisar).
+    |
+    */
+    'route_prefix' => env('FLOW_ROUTE_PREFIX', 'flow'),
+    'route_middleware' => ['web', 'auth'],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Policy (context-aware)
+    |--------------------------------------------------------------------------
+    |
+    | admin_permission: permissão que permite bypass (ex.: flow.execution.admin).
+    | check_role: callable(Authenticatable $user, ?string $roleId): bool para
+    |   verificar se o usuário tem a role da etapa. Se null, não considera role
+    |   (apenas suggested_responsible_id e participants). No app: publicar config
+    |   e definir: 'check_role' => fn ($user, $roleId) => $user->roles->contains('id', $roleId),
+    |
+    */
+    'policy' => [
+        'admin_permission' => 'flow.execution.admin',
+        'check_role' => null,
+    ],
 ];

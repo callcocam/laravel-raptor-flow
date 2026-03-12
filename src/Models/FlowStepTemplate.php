@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 class FlowStepTemplate extends Model
 {
@@ -51,5 +52,95 @@ class FlowStepTemplate extends Model
     public function configSteps(): HasMany
     {
         return $this->hasMany(FlowConfigStep::class, 'flow_step_template_id');
+    }
+
+    /**
+     * Retorna os templates padrão (ex.: planograma).
+     * Use flow:seed-templates para criar no banco.
+     *
+     * @return array<int, array{name: string, slug: string, description: string, instructions: string, category: string, suggested_order: int, estimated_duration_days: int, is_required_by_default: bool, color: string, icon: string, tags: array}>
+     */
+    public static function getDefaultTemplates(): array
+    {
+        $defaults = [
+            [
+                'name' => 'Criação do planograma',
+                'description' => 'Criação inicial do planograma com definição de produtos e layout',
+                'instructions' => 'Definir produtos, posicionamento e layout inicial do planograma',
+                'category' => 'criacao',
+                'suggested_order' => 1,
+                'estimated_duration_days' => 2,
+                'is_required_by_default' => true,
+                'color' => 'blue',
+                'icon' => 'layout-grid',
+                'tags' => ['inicial', 'obrigatoria'],
+            ],
+            [
+                'name' => 'Avaliação do Comercial',
+                'description' => 'Análise comercial do planograma proposto',
+                'instructions' => 'Revisar aspectos comerciais, margem e estratégia de vendas',
+                'category' => 'analise',
+                'suggested_order' => 2,
+                'estimated_duration_days' => 3,
+                'is_required_by_default' => true,
+                'color' => 'yellow',
+                'icon' => 'trending-up',
+                'tags' => ['comercial', 'analise'],
+            ],
+            [
+                'name' => 'Aprovação da área de GC',
+                'description' => 'Aprovação pela área de Gerenciamento de Categoria',
+                'instructions' => 'Validar alinhamento com estratégia de categoria e políticas',
+                'category' => 'aprovacao',
+                'suggested_order' => 3,
+                'estimated_duration_days' => 2,
+                'is_required_by_default' => true,
+                'color' => 'purple',
+                'icon' => 'check-circle',
+                'tags' => ['aprovacao', 'gc'],
+            ],
+            [
+                'name' => 'Revisão final',
+                'description' => 'Revisão final antes da implementação',
+                'instructions' => 'Verificar todos os aspectos antes da implementação final',
+                'category' => 'revisao',
+                'suggested_order' => 4,
+                'estimated_duration_days' => 1,
+                'is_required_by_default' => true,
+                'color' => 'indigo',
+                'icon' => 'eye',
+                'tags' => ['revisao', 'final'],
+            ],
+            [
+                'name' => 'Logística e abastecimento',
+                'description' => 'Preparação logística e garantia de abastecimento',
+                'instructions' => 'Coordenar logística e garantir disponibilidade de produtos',
+                'category' => 'logistica',
+                'suggested_order' => 5,
+                'estimated_duration_days' => 3,
+                'is_required_by_default' => true,
+                'color' => 'green',
+                'icon' => 'truck',
+                'tags' => ['logistica', 'abastecimento'],
+            ],
+            [
+                'name' => 'Execução Loja',
+                'description' => 'Implementação do planograma na loja',
+                'instructions' => 'Implementar fisicamente o planograma na loja',
+                'category' => 'execucao',
+                'suggested_order' => 6,
+                'estimated_duration_days' => 1,
+                'is_required_by_default' => true,
+                'color' => 'red',
+                'icon' => 'store',
+                'tags' => ['execucao', 'loja'],
+            ],
+        ];
+
+        foreach ($defaults as $i => $row) {
+            $defaults[$i]['slug'] = Str::slug($row['name']);
+        }
+
+        return $defaults;
     }
 }
