@@ -26,9 +26,9 @@ const currentDragData = inject<Ref<{ groupId: string; fromStepId: string } | nul
   ref(null)
 );
 
-const workable = computed(() => props.execution.workable ?? props.execution.gondola);
+const workable = computed(() => props.execution.workable);
 const workableLabel = computed(() => workable.value?.name ?? '—');
-const workableSubLabel = computed(() => (props.execution as any).gondola?.planogram?.name ?? null);
+const workableSubLabel = computed(() => workable.value?.group_label ?? null);
 
 const canDrag = computed(() => {
   if (props.execution.permissions) return props.execution.permissions.can_move;
@@ -71,19 +71,12 @@ const slaFormatted = computed(() => {
 
 function handleDragStart(event: DragEvent) {
   if (!event.dataTransfer) return;
-  // group_id: campo genérico do workable; fallback para planogram_id (gondola compat)
-  const groupId = String(
-    props.execution.workable?.group_id
-    ?? (props.execution as any).gondola?.planogram_id
-    ?? (props.execution as any).workable?.planogram_id
-    ?? ''
-  );
+  const groupId = String(props.execution.workable?.group_id ?? '');
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData(
     'application/json',
     JSON.stringify({
       workableId: (workable.value as any)?.id ?? props.execution.id,
-      gondolaId: (props.execution as any).gondola_id ?? (workable.value as any)?.id,
       fromStepId: props.stepId,
       executionId: props.execution.id,
       groupId,

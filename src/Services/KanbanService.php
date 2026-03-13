@@ -4,72 +4,40 @@ namespace Callcocam\LaravelRaptorFlow\Services;
 
 use Callcocam\LaravelRaptorFlow\Models\Flow;
 use Callcocam\LaravelRaptorFlow\Models\FlowConfigStep;
-use Callcocam\LaravelRaptorFlow\Support\Kanban\Columns\ExecutionColumn;
-use Callcocam\LaravelRaptorFlow\Support\Kanban\KanbanBoard;
+use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
+use Callcocam\LaravelRaptorFlow\Models\FlowStepTemplate;
 use Closure;
-use Illuminate\Support\Collection;
 
 /**
- * Serviço Kanban do pacote: parte do Flow e delega ao KanbanBoard.
+ * Serviço Kanban genérico do pacote.
  *
- * O app configura workableType, workableIds, filters, columns, etc. e chama getBoardData().
- * Os steps vêm do flow; groupConfigs são calculados a partir dos FlowConfigSteps do fluxo
- * (agrupados por configurável: id, name, stepIds).
+ * Combina dois padrões para máxima flexibilidade:
  *
- * Uso no app (ex. Plannerate):
- *   $this->kanbanService
- *       ->setFlow($flow)
- *       ->setWorkableType(GondolaWorkflow::class)
- *       ->setWorkableIds(fn () => $gondolasCache->keys()->toArray())
- *       ->setFilters($filters)
- *       ->setColumns([...])
- *       ->getBoardData();
+ * 1. **Fluent setters** – configuração direta sem extensão:
+ *      $service->setFlow($flow)->setWorkableType(MyWorkflow::class)->getBoardData();
+ * 
  */
 class KanbanService
 {
     protected ?Flow $flow = null;
 
-    protected string $workableType = '';
-
-    /** @var Closure|array|null */
-    protected $workableIdsResolver = null;
-
     protected array $filters = [];
 
-    /** @var ExecutionColumn[] */
-    protected array $columns = [];
+    /** @var Closure(FlowExecution, FlowConfigStep, mixed): array<string, mixed>|null */
+    protected ?Closure $permissionsResolver = null;
 
-    protected bool $withDetailModal = false;
+    // ─────────────────────────────────────────────────────────────────────────
+    // Fluent setters
+    // ─────────────────────────────────────────────────────────────────────────
 
-    protected ?Closure $additionalQueryCallback = null;
-
-    protected ?Closure $userRolesResolver = null;
-
-    /** @var Closure|array|null groupConfigs customizados; se null, são calculados a partir do flow */
-    protected $groupConfigsResolver = null;
-
-    public function setFlow(Flow $flow): self
+    public function setFlow(Flow $flow): static
     {
         $this->flow = $flow;
 
         return $this;
     }
 
-    public function setWorkableType(string $class): self
-    {
-        $this->workableType = $class;
-
-        return $this;
-    }
-
-    public function setWorkableIds(Closure|array $ids): self
-    {
-        $this->workableIdsResolver = $ids;
-
-        return $this;
-    }
-
-    public function setFilters(array $filters): self
+    public function setFilters(array $filters): static
     {
         $this->filters = $filters;
 
@@ -77,120 +45,240 @@ class KanbanService
     }
 
     /**
-     * @param  ExecutionColumn[]  $columns
+     * Injeta um resolver de permissões específico do domínio.
+     * O closure recebe (FlowExecution, FlowConfigStep, $config) e deve retornar
+     * um array com as chaves de permissão desejadas.
+     *
+     * @param  Closure(FlowExecution, FlowConfigStep, mixed): array<string, mixed>  $resolver
      */
-    public function setColumns(array $columns): self
+    public function setPermissionsResolver(Closure $resolver): static
     {
-        $this->columns = $columns;
+        $this->permissionsResolver = $resolver;
 
         return $this;
     }
+ 
 
-    public function setWithDetailModal(bool $enable = true): self
-    {
-        $this->withDetailModal = $enable;
-
-        return $this;
-    }
-
-    public function setAdditionalQuery(?Closure $callback): self
-    {
-        $this->additionalQueryCallback = $callback;
-
-        return $this;
-    }
-
-    public function setUserRoles(?Closure $resolver): self
-    {
-        $this->userRolesResolver = $resolver;
-
-        return $this;
-    }
+    // ─────────────────────────────────────────────────────────────────────────
+    // Ponto de entrada principal
+    // ─────────────────────────────────────────────────────────────────────────
 
     /**
-     * groupConfigs customizados. Se null, getBoardData() calcula a partir do flow
-     * (FlowConfigStep do fluxo agrupados por configurable_id).
-     */
-    public function setGroupConfigs(Closure|array|null $resolver): self
-    {
-        $this->groupConfigsResolver = $resolver;
-
-        return $this;
-    }
-
-    /**
-     * Retorna o mesmo formato do KanbanBoard: board (steps + executions), groupConfigs, userRoles, filters.
+     * Monta o board no formato árvore:
+     * Flow -> StepTemplates -> FlowConfigStep(configurable_type/configurable_id) -> configs -> execution.
+     *
+     * A relação `configs` do configurable é a fonte padrão das gôndolas/itens.
+     * A execution é selecionada pela etapa correta (flow_step_template_id + flow_config_step_id).
+     *
+     * @return array<int, array<string, mixed>>
      */
     public function getBoardData(): array
-    {
-        $board = KanbanBoard::make()
-            ->flow($this->flow)
-            ->workableType($this->workableType)
-            ->workableIds($this->workableIdsResolver ?? [])
-            ->filters($this->filters)
-            ->withDetailModal($this->withDetailModal)
-            ->groupConfigs($this->groupConfigsResolver ?? fn () => $this->getGroupConfigsFromFlow())
-            ->columns($this->columns);
-
-        if ($this->additionalQueryCallback !== null) {
-            $board->additionalQuery($this->additionalQueryCallback);
-        }
-
-        if ($this->userRolesResolver !== null) {
-            $board->userRoles($this->userRolesResolver);
-        }
-
-        return $board->getBoardData();
-    }
-
-    /**
-     * Opções para os filtros do painel (planogramas, lojas, usuários, etc.).
-     * O app pode sobrescrever para retornar dados de domínio.
-     *
-     * @return array<int, mixed>
-     */
-    public function getFilterOptionsData(): array
-    {
-        return [];
-    }
-
-    /**
-     * groupConfigs a partir do flow: FlowConfigSteps dos templates do fluxo,
-     * agrupados por configurable_id; cada grupo tem id, name (label do configurável), stepIds.
-     *
-     * @return array<int, array{id: string, name: string, stepIds: array<string>}>
-     */
-    protected function getGroupConfigsFromFlow(): array
     {
         if ($this->flow === null) {
             return [];
         }
 
-        $templateIds = $this->flow->stepTemplates()
-            ->where('is_active', true)
-            ->orderBy('suggested_order')
-            ->pluck('id')
-            ->toArray();
+        $this->flow->loadMissing(['stepTemplates' => fn($query) => $query->where('is_active', true)->orderBy('suggested_order')]);
 
-        if (empty($templateIds)) {
-            return [];
+        return $this->flow->stepTemplates
+            ->where('is_active', true)
+            ->sortBy('suggested_order')
+            ->values()
+            ->map(function (FlowStepTemplate $flowStepTemplate) {
+                $flowStepTemplate->loadMissing('configSteps');
+
+                $formattedConfigSteps = $flowStepTemplate->configSteps
+                    ->sortBy('order')
+                    ->values()
+                    ->map(fn(FlowConfigStep $configStep) => $this->formatConfigStep($configStep, $flowStepTemplate))
+                    ->filter(fn(array $configStep) => ! empty($configStep['configs']))
+                    ->values();
+
+                return [
+                    'id' => $flowStepTemplate->id,
+                    'name' => $flowStepTemplate->name,
+                    'slug' => $flowStepTemplate->slug,
+                    'description' => $flowStepTemplate->description,
+                    'color' => $flowStepTemplate->color,
+                    'suggested_order' => $flowStepTemplate->suggested_order,
+                    'executions' => $formattedConfigSteps
+                        ->flatMap(fn(array $configStep) => collect($configStep['configs'] ?? []))
+                        ->pluck('execution')
+                        ->filter(fn($execution) => is_array($execution))
+                        ->values()
+                        ->toArray(),
+                    'configSteps' => $formattedConfigSteps->toArray(),
+                ];
+            })
+            ->toArray();
+    }
+
+    /**
+     * @return array{id: string|null, order: int|null, configurable_id: string|null, configurable_type: string|null, configurable_label: string|null, configs: array<int, array<string, mixed>>}
+     */
+    protected function formatConfigStep(FlowConfigStep $configStep, FlowStepTemplate $flowStepTemplate): array
+    {
+        $configurableType = $configStep->configurable_type;
+        $configurableId = $configStep->configurable_id;
+
+        $configModel = null;
+
+        if (is_string($configurableType) && class_exists($configurableType) && $configurableId !== null) {
+            $configModel = $configurableType::query()->find($configurableId);
         }
 
-        $stepsByConfigurable = FlowConfigStep::query()
-            ->whereIn('flow_step_template_id', $templateIds)
-            ->with('configurable')
-            ->orderBy('order')
-            ->get()
-            ->groupBy('configurable_id');
+        $configurableLabel = null;
 
-        return $stepsByConfigurable->map(function (Collection $steps, string $configurableId) {
-            $configurable = $steps->first()?->configurable;
+        if (is_object($configModel) && method_exists($configModel, 'getWorkflowLabel')) {
+            $configurableLabel = $configModel->getWorkflowLabel();
+        }
 
-            return [
-                'id' => $configurableId,
-                'name' => $configurable?->getWorkflowLabel() ?? $configurableId,
-                'stepIds' => $steps->sortBy('order')->pluck('flow_step_template_id')->values()->toArray(),
-            ];
-        })->values()->toArray();
+        $configs = collect();
+
+        if (is_object($configModel) && method_exists($configModel, 'configs')) {
+            if (method_exists($configModel, 'loadMissing')) {
+                $configModel->loadMissing('configs');
+            }
+
+            $configs = collect($configModel->configs)->values();
+        }
+
+        return [
+            'id' => $configStep->id,
+            'order' => $configStep->order,
+            'configurable_id' => $configurableId,
+            'configurable_type' => $configurableType,
+            'configurable_label' => $configurableLabel,
+            'configs' => $configs
+                ->map(fn($config) => $this->formatConfigItem($config, $configStep, $flowStepTemplate, $configurableLabel))
+                ->filter(fn(array $configItem) => is_array($configItem['execution']))
+                ->values()
+                ->toArray(),
+        ];
+    }
+
+    /**
+     * @return array{id: string|null, name: string|null, execution: array<string, mixed>|null}
+     */
+    protected function formatConfigItem(
+        mixed $config,
+        FlowConfigStep $configStep,
+        FlowStepTemplate $flowStepTemplate,
+        ?string $configurableLabel
+    ): array {
+        $execution = $this->resolveExecutionForStep($config, $configStep, $flowStepTemplate);
+
+        return [
+            'id' => is_object($config) && method_exists($config, 'getKey') ? $config->getKey() : data_get($config, 'id'),
+            'name' => data_get($config, 'name') ?? data_get($config, 'title'),
+            'execution' => $execution
+                ? $this->formatExecution($execution, $configStep, $config, $configurableLabel)
+                : null,
+        ];
+    }
+
+    /**
+     * Compatibilidade com testes e extensões antigas.
+     *
+     * @return array{id: string|null, name: string|null, execution: array<string, mixed>|null}
+     */
+    protected function formatConfigItemForStep(mixed $config, FlowConfigStep $configStep): array
+    {
+        $flowStepTemplate = new FlowStepTemplate;
+        $flowStepTemplate->id = (string) $configStep->flow_step_template_id;
+
+        return $this->formatConfigItem(
+            $config,
+            $configStep,
+            $flowStepTemplate,
+            null
+        );
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    protected function formatExecution(
+        FlowExecution $execution,
+        FlowConfigStep $configStep,
+        mixed $config,
+        ?string $configurableLabel
+    ): array {
+        $status = is_object($execution->status) && property_exists($execution->status, 'value')
+            ? $execution->status->value
+            : (string) $execution->status;
+
+        $payload = [
+            'id' => $execution->id,
+            'flow_config_step_id' => $execution->flow_config_step_id,
+            'workflow_step_template_id' => $execution->flow_step_template_id,
+            'status' => $status,
+            'started_at' => $execution->started_at?->toIso8601String(),
+            'completed_at' => $execution->completed_at?->toIso8601String(),
+            'sla_date' => $execution->sla_date?->toIso8601String(),
+            'notes' => $execution->notes,
+            'workable' => [
+                'id' => is_object($config) && method_exists($config, 'getKey') ? $config->getKey() : data_get($config, 'id'),
+                'name' => data_get($config, 'name') ?? data_get($config, 'title'),
+                'group_id' => $configStep->configurable_id,
+                'group_label' => $configurableLabel,
+            ],
+        ];
+
+        $user = auth()->user();
+ 
+
+        $payload['permissions'] = [
+            'can_move' => $user->can('move', $execution),
+            'can_perform_actions' => ($user->can('start', $execution) || $user->can('move', $execution) || $user->can('assign', $execution)),
+            'can_start_execution' => $user->can('start', $execution),
+            'can_edit_planogram' => $user->can('update', $config),
+        ]; 
+        return $payload;
+    }
+
+    protected function resolveExecutionForStep(mixed $config, FlowConfigStep $configStep, FlowStepTemplate $flowStepTemplate): ?FlowExecution
+    {
+        if (! is_object($config)) {
+            return null;
+        }
+
+        if (method_exists($config, 'workflowExecutions')) {
+            $match = collect($config->workflowExecutions)->first(function ($execution) use ($configStep, $flowStepTemplate) {
+                return (string) $execution->flow_config_step_id === (string) $configStep->id
+                    && (string) $execution->flow_step_template_id === (string) $flowStepTemplate->id;
+            });
+
+            if ($match instanceof FlowExecution) {
+                return $match;
+            }
+        }
+
+        if (method_exists($config, 'execution')) {
+            $execution = data_get($config, 'execution');
+            if (
+                $execution instanceof FlowExecution
+                && (string) $execution->flow_config_step_id === (string) $configStep->id
+                && (string) $execution->flow_step_template_id === (string) $flowStepTemplate->id
+            ) {
+                return $execution;
+            }
+        }
+
+        if (! method_exists($config, 'getKey')) {
+            return null;
+        }
+
+        return FlowExecution::query()
+            ->where('workable_type', get_class($config))
+            ->where('workable_id', $config->getKey())
+            ->where('flow_config_step_id', $configStep->id)
+            ->where('flow_step_template_id', $flowStepTemplate->id)
+            ->first();
+    }
+
+    public function getFilterOptionsData(): array
+    {
+        return [];
     }
 }

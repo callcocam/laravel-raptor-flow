@@ -52,7 +52,7 @@ class FlowExecution extends Model
         ];
     }
 
-    public function workable(): MorphTo
+    public function executionable(): MorphTo
     {
         return $this->morphTo();
     }

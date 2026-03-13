@@ -33,7 +33,7 @@ const emit = defineEmits<{
 
 const isOpen = computed(() => props.execution !== null && props.config !== null)
 
-const workable = computed(() => props.execution?.workable ?? props.execution?.gondola ?? null)
+const workable = computed(() => props.execution?.workable ?? null)
 const titleText = computed(() => workable.value?.name ?? '—')
 
 const firstLink = computed((): DetailModalLinkConfig | null => props.config?.links?.[0] ?? null)
@@ -78,7 +78,7 @@ const buttonActions = computed(() =>
 function getFieldValue(execution: FlowKanbanExecution, key: string): unknown {
   const ex = execution as unknown as Record<string, unknown>
   if (ex[key] !== undefined) return ex[key]
-  const w = execution.workable ?? execution.gondola
+  const w = execution.workable
   if (w && typeof w === 'object' && key in w) return (w as Record<string, unknown>)[key]
   return undefined
 }
@@ -92,14 +92,7 @@ function formatFieldValue(value: unknown): string {
 }
 
 const timelineSteps = computed(() => {
-  if (props.steps?.length) return props.steps
-  const planogram = (props.execution as any)?.gondola?.planogram ?? (props.execution as any)?.planogram
-  return (planogram?.configs ?? []).map((c: any) => ({
-    id: c.id,
-    name: c.name,
-    color: c.color ?? '',
-    suggested_order: c.suggested_order ?? 0,
-  }))
+  return props.steps ?? []
 })
 
 const currentStepId = computed(() => props.execution?.workflow_step_template_id ?? '')

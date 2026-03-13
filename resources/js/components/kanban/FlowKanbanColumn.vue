@@ -49,7 +49,7 @@ function handleDrop(event: DragEvent) {
   if (!raw) return;
   try {
     const data = JSON.parse(raw);
-    const workableId = data.gondolaId ?? data.workableId;
+    const workableId = data.workableId;
     const fromStepId = data.fromStepId;
     const groupId = data.groupId ?? '';
     if (fromStepId === props.step.id) return;

@@ -20,6 +20,7 @@ export interface FlowKanbanWorkable {
   /** ID do grupo ao qual este workable pertence (ex: planogram_id, project_id).
    *  Usado para validar drop entre colunas via FlowKanbanGroupConfig. */
   group_id?: string | null;
+  group_label?: string | null;
   [key: string]: unknown;
 }
 
@@ -35,6 +36,7 @@ export interface FlowKanbanExecution {
   id: string;
   status: string;
   workflow_step_template_id: string;
+  flow_config_step_id?: string;
   current_responsible_id?: string | null;
   execution_started_by?: string | null;
   started_at?: string | null;
@@ -43,12 +45,6 @@ export interface FlowKanbanExecution {
   is_overdue?: boolean;
   notes?: string | null;
   workable?: FlowKanbanWorkable;
-  /** Compatibilidade: app pode enviar gondola em vez de workable */
-  gondola?: FlowKanbanWorkable & {
-    planogram_id?: string;
-    planogram?: { id: string; name: string; edit_url?: string; can_edit?: boolean };
-    route_gondolas?: string;
-  };
   currentResponsible?: { id: string; name: string; email?: string } | null;
   startedBy?: { id: string; name: string } | null;
   users?: Array<{ id: string; name: string; email?: string }>;
@@ -56,10 +52,33 @@ export interface FlowKanbanExecution {
   permissions?: FlowKanbanExecutionPermissions;
 }
 
-export interface FlowKanbanBoardData {
-  steps: FlowKanbanStep[];
-  executions: Record<string, FlowKanbanExecution[]>;
+export interface FlowKanbanBoardTreeConfigItem {
+  id: string;
+  name: string | null;
+  execution: FlowKanbanExecution | null;
 }
+
+export interface FlowKanbanBoardTreeConfigStep {
+  id: string;
+  order?: number | null;
+  configurable_id: string;
+  configurable_type?: string | null;
+  configurable_label?: string | null;
+  configs: FlowKanbanBoardTreeConfigItem[];
+}
+
+export interface FlowKanbanBoardTreeNode {
+  id: string;
+  name: string;
+  suggested_order?: number;
+  description?: string | null;
+  slug?: string;
+  color?: string | null;
+  executions?: FlowKanbanExecution[];
+  configSteps: FlowKanbanBoardTreeConfigStep[];
+}
+
+export type FlowKanbanBoardData = FlowKanbanBoardTreeNode[];
 
 /**
  * Configuração de grupo usada para validar quais colunas (steps) aceitam o drop

@@ -11,9 +11,11 @@ import type {
 } from '../../types/detailModal';
 import type {
   FlowKanbanBoardData,
+  FlowKanbanBoardTreeNode,
   FlowKanbanExecution,
   FlowKanbanFilterConfig,
   FlowKanbanGroupConfig,
+  FlowKanbanStep,
 } from '../../types/kanban';
 import { computed, ref } from 'vue';
 
@@ -57,6 +59,73 @@ const emit = defineEmits<{
 
 const selectedExecution = ref<FlowKanbanExecution | null>(null);
 const filterConfigs = computed(() => props.filters?.data ?? []);
+const normalizedSteps = computed<FlowKanbanStep[]>(() =>
+  props.board.map((template, index, arr) => ({
+    id: template.id,
+    name: template.name,
+    description: template.description ?? null,
+    slug: template.slug,
+    color: template.color ?? null,
+    suggested_order: template.suggested_order,
+    templateNextStep: arr[index + 1]
+      ? { id: arr[index + 1].id, name: arr[index + 1].name }
+      : undefined,
+    templatePreviousStep: index > 0
+      ? { id: arr[index - 1].id, name: arr[index - 1].name }
+      : undefined,
+  }))
+);
+
+const normalizedExecutions = computed<Record<string, FlowKanbanExecution[]>>(() =>
+  Object.fromEntries(
+    props.board.map((template) => [
+      template.id,
+      normalizeTemplateExecutions(template),
+    ])
+  )
+);
+
+function normalizeTemplateExecutions(template: FlowKanbanBoardTreeNode): FlowKanbanExecution[] {
+  if (Array.isArray(template.executions) && template.executions.length > 0) {
+    return template.executions.map((execution) => normalizeExecution({ execution }, template));
+  }
+
+  return template.configSteps.flatMap((configStep) =>
+    configStep.configs.flatMap((config) => {
+      if (!config.execution) {
+        return [];
+      }
+
+      return [normalizeExecution(config, template, configStep.id, configStep.configurable_id)];
+    })
+  );
+}
+
+function normalizeExecution(
+  config: { id?: string; name?: string | null; execution: FlowKanbanExecution | null },
+  template: FlowKanbanBoardTreeNode,
+  flowConfigStepId?: string,
+  groupId?: string,
+): FlowKanbanExecution {
+  const execution = config.execution as FlowKanbanExecution;
+  const workable = (execution.workable ?? {}) as {
+    id?: string;
+    name?: string;
+    group_id?: string | null;
+  };
+
+  return {
+    ...execution,
+    workflow_step_template_id: execution.workflow_step_template_id ?? template.id,
+    flow_config_step_id: execution.flow_config_step_id ?? flowConfigStepId,
+    workable: {
+      ...workable,
+      id: workable.id ?? config.id ?? execution.id,
+      name: workable.name ?? config.name ?? '—',
+      group_id: workable.group_id ?? groupId ?? null,
+    },
+  };
+}
 
 function runRequest(req: FlowKanbanActionRequest) {
   const method = (req.method ?? 'post').toLowerCase();
@@ -167,8 +236,8 @@ function handleModalAction(
 
     <div class="flex-1 overflow-x-auto overflow-y-hidden">
       <FlowKanbanBoard
-        :steps="board.steps"
-        :executions="board.executions"
+        :steps="normalizedSteps"
+        :executions="normalizedExecutions"
         :group-configs="groupConfigs"
         :user-roles="userRoles"
         :current-user-id="currentUserId"
@@ -185,7 +254,7 @@ function handleModalAction(
       v-if="detailModalConfig"
       :execution="selectedExecution"
       :config="detailModalConfig"
-      :steps="board.steps"
+      :steps="normalizedSteps"
       :current-user-id="currentUserId"
       :user-roles="userRoles"
       @close="handleCloseDetail"
