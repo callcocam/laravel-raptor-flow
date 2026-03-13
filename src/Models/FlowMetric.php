@@ -18,7 +18,6 @@ class FlowMetric extends Model
     protected $fillable = [
         'workable_type',
         'workable_id',
-        'flow_config_id',
         'flow_config_step_id',
         'flow_step_template_id',
         'total_duration_minutes',
@@ -54,11 +53,6 @@ class FlowMetric extends Model
     public function workable(): MorphTo
     {
         return $this->morphTo();
-    }
-
-    public function config(): BelongsTo
-    {
-        return $this->belongsTo(FlowConfig::class, 'flow_config_id');
     }
 
     public function configStep(): BelongsTo

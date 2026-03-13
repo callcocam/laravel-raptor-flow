@@ -17,6 +17,9 @@ export interface FlowKanbanStep {
 export interface FlowKanbanWorkable {
   id: string;
   name: string;
+  /** ID do grupo ao qual este workable pertence (ex: planogram_id, project_id).
+   *  Usado para validar drop entre colunas via FlowKanbanGroupConfig. */
+  group_id?: string | null;
   [key: string]: unknown;
 }
 
@@ -27,7 +30,7 @@ export interface FlowKanbanExecutionPermissions {
   can_edit_planogram?: boolean;
 }
 
-/** Execução genérica (card do Kanban). workable substitui gondola para ser polimórfico. */
+/** Execução genérica (card do Kanban). */
 export interface FlowKanbanExecution {
   id: string;
   status: string;
@@ -41,7 +44,11 @@ export interface FlowKanbanExecution {
   notes?: string | null;
   workable?: FlowKanbanWorkable;
   /** Compatibilidade: app pode enviar gondola em vez de workable */
-  gondola?: FlowKanbanWorkable & { planogram_id?: string; planogram?: { id: string; name: string; edit_url?: string; can_edit?: boolean }; route_gondolas?: string };
+  gondola?: FlowKanbanWorkable & {
+    planogram_id?: string;
+    planogram?: { id: string; name: string; edit_url?: string; can_edit?: boolean };
+    route_gondolas?: string;
+  };
   currentResponsible?: { id: string; name: string; email?: string } | null;
   startedBy?: { id: string; name: string } | null;
   users?: Array<{ id: string; name: string; email?: string }>;
@@ -54,17 +61,19 @@ export interface FlowKanbanBoardData {
   executions: Record<string, FlowKanbanExecution[]>;
 }
 
-export interface FlowKanbanConfigOption {
+/**
+ * Configuração de grupo usada para validar quais colunas (steps) aceitam o drop
+ * de um card pertencente a esse grupo.
+ *
+ * Genérico: substitui o antigo FlowKanbanPlanogramOption.
+ * Exemplos de uso: planogramas, projetos, categorias, etc.
+ */
+export interface FlowKanbanGroupConfig {
+  /** Identificador do grupo (ex: planogram.id, project.id) */
   id: string;
   name: string;
-  color?: string;
-  suggested_order?: number;
-}
-
-export interface FlowKanbanPlanogramOption {
-  id: string;
-  name: string;
-  configs: FlowKanbanConfigOption[];
+  /** IDs dos steps permitidos para este grupo */
+  stepIds: string[];
 }
 
 export interface FlowKanbanFilterOption {

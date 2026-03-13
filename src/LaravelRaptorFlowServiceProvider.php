@@ -19,10 +19,8 @@ class LaravelRaptorFlowServiceProvider extends PackageServiceProvider
         parent::register();
         $this->mergeConfigFrom(__DIR__.'/../config/flow.php', 'flow');
 
-        $migrationsPath = realpath(__DIR__.'/../database/migrations');
-        if ($migrationsPath !== false) {
-            Config::set('flow.client_migrations_path', $migrationsPath);
-        }
+        // Flow no banco principal (landlord): não rodar migrations do flow nos bancos de cliente.
+        Config::set('flow.client_migrations_path', null);
 
         $this->app->singleton(FlowManager::class, fn () => new FlowManager);
     }
@@ -65,8 +63,7 @@ class LaravelRaptorFlowServiceProvider extends PackageServiceProvider
 
         if (! is_file($routeFile)) {
             return;
-        }
-
+        } 
         Route::middleware($middleware)
             ->prefix($prefix)
             ->group($routeFile);

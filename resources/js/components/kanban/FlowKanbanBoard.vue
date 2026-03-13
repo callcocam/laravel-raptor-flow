@@ -2,7 +2,7 @@
 import FlowKanbanColumn from './FlowKanbanColumn.vue';
 import type {
   FlowKanbanExecution,
-  FlowKanbanPlanogramOption,
+  FlowKanbanGroupConfig,
   FlowKanbanStep,
 } from '../../types/kanban';
 import { ref, provide } from 'vue';
@@ -10,7 +10,8 @@ import { ref, provide } from 'vue';
 interface Props {
   steps: FlowKanbanStep[];
   executions: Record<string, FlowKanbanExecution[]>;
-  planograms?: FlowKanbanPlanogramOption[] | null;
+  /** Configs de grupo para validação de drop entre colunas. */
+  groupConfigs?: FlowKanbanGroupConfig[] | null;
   userRoles?: string[];
   currentUserId?: string | null;
 }
@@ -22,7 +23,7 @@ const emit = defineEmits<{
   cardClick: [execution: FlowKanbanExecution];
 }>();
 
-const currentDragData = ref<{ planogramId: string; fromStepId: string } | null>(null);
+const currentDragData = ref<{ groupId: string; fromStepId: string } | null>(null);
 provide('flowKanbanDragData', currentDragData);
 
 function handleMove(workableId: string, fromStepId: string, toStepId: string) {
@@ -41,7 +42,7 @@ function handleCardClick(execution: FlowKanbanExecution) {
       :key="step.id"
       :step="step"
       :executions="executions[step.id] ?? []"
-      :planograms="planograms"
+      :group-configs="groupConfigs"
       :user-roles="userRoles"
       :current-user-id="currentUserId"
       @move="handleMove"

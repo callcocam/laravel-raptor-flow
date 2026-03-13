@@ -15,8 +15,15 @@ return new class extends Migration
 
     public function up(): void
     {
-        Schema::connection(config('flow.connection'))->create($this->prefix.'step_templates', function (Blueprint $table) {
+        $templatesTable = $this->prefix.'step_templates';
+
+        Schema::connection(config('flow.connection'))->create($templatesTable, function (Blueprint $table) use ($templatesTable) {
             $table->ulid('id')->primary();
+            $table->ulid('user_id')->nullable();
+            $table->ulid('tenant_id')->nullable();
+            $table->foreignUlid('flow_id')->nullable()->constrained($this->prefix.'flows')->nullOnDelete();
+            $table->foreignUlid('template_next_step_id')->nullable()->constrained($templatesTable)->nullOnDelete();
+            $table->foreignUlid('template_previous_step_id')->nullable()->constrained($templatesTable)->nullOnDelete();
             $table->string('name');
             $table->string('slug')->unique();
             $table->text('description')->nullable();

@@ -21,7 +21,7 @@ const emit = defineEmits<{
   click: [execution: FlowKanbanExecution];
 }>();
 
-const currentDragData = inject<Ref<{ planogramId: string; fromStepId: string } | null>>(
+const currentDragData = inject<Ref<{ groupId: string; fromStepId: string } | null>>(
   'flowKanbanDragData',
   ref(null)
 );
@@ -71,7 +71,13 @@ const slaFormatted = computed(() => {
 
 function handleDragStart(event: DragEvent) {
   if (!event.dataTransfer) return;
-  const planogramId = (props.execution as any).gondola?.planogram_id ?? (props.execution as any).workable?.planogram_id ?? '';
+  // group_id: campo genérico do workable; fallback para planogram_id (gondola compat)
+  const groupId = String(
+    props.execution.workable?.group_id
+    ?? (props.execution as any).gondola?.planogram_id
+    ?? (props.execution as any).workable?.planogram_id
+    ?? ''
+  );
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData(
     'application/json',
@@ -80,10 +86,10 @@ function handleDragStart(event: DragEvent) {
       gondolaId: (props.execution as any).gondola_id ?? (workable.value as any)?.id,
       fromStepId: props.stepId,
       executionId: props.execution.id,
-      planogramId,
+      groupId,
     })
   );
-  if (currentDragData) currentDragData.value = { planogramId: String(planogramId), fromStepId: props.stepId };
+  if (currentDragData) currentDragData.value = { groupId, fromStepId: props.stepId };
 }
 
 function handleDragEnd() {

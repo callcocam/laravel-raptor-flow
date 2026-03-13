@@ -15,12 +15,12 @@ return new class extends Migration
 
     public function up(): void
     {
-        $configsTable = $this->prefix.'configs';
         $templatesTable = $this->prefix.'step_templates';
 
-        Schema::connection(config('flow.connection'))->create($this->prefix.'config_steps', function (Blueprint $table) use ($configsTable, $templatesTable) {
+        Schema::connection(config('flow.connection'))->create($this->prefix.'config_steps', function (Blueprint $table) use ($templatesTable) {
             $table->ulid('id')->primary();
-            $table->foreignUlid('flow_config_id')->constrained($configsTable)->cascadeOnDelete();
+            $table->string('configurable_type');
+            $table->ulid('configurable_id');
             $table->foreignUlid('flow_step_template_id')->constrained($templatesTable)->cascadeOnDelete();
             $table->string('name')->nullable();
             $table->text('description')->nullable();
@@ -38,6 +38,8 @@ return new class extends Migration
             $table->text('notes')->nullable();
             $table->json('metadata')->nullable();
             $table->timestamps();
+
+            $table->index(['configurable_type', 'configurable_id']);
         });
     }
 

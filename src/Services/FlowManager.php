@@ -5,44 +5,37 @@ namespace Callcocam\LaravelRaptorFlow\Services;
 use Callcocam\LaravelRaptorFlow\Contracts\Workable;
 use Callcocam\LaravelRaptorFlow\Enums\FlowAction;
 use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
-use Callcocam\LaravelRaptorFlow\Models\FlowConfig;
 use Callcocam\LaravelRaptorFlow\Models\FlowConfigStep;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Callcocam\LaravelRaptorFlow\Models\FlowHistory;
 use Callcocam\LaravelRaptorFlow\Models\FlowPreset;
 use Callcocam\LaravelRaptorFlow\Models\FlowStepTemplate;
+use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
 /**
- * API principal do pacote. Criação e sincronização de configs (inline ou por preset),
- * e controle de execuções (start, move, complete, pause, resume, assign, abandon).
- *
- * @see docs/plan.md seção 6.3
+ * API principal do pacote. Etapas (FlowConfigStep) ligadas ao configurável (ex.: Planograma);
+ * execuções (FlowExecution) por workable (ex.: Gôndola). Sem FlowConfig: Flow → FlowStepTemplate,
+ * configurável → FlowConfigStep → FlowStepTemplate, FlowExecution → FlowConfigStep.
  */
 class FlowManager
 {
     /**
-     * Cria uma config a partir de um preset (CRUD de presets).
-     * Cria FlowConfig + FlowConfigSteps e, opcionalmente, FlowExecutions por workable.
+     * Aplica um preset: cria FlowConfigSteps para o configurável a partir do preset.
+     *
+     * @return Collection<int, FlowConfigStep>
      */
-    public function applyPreset(Workable $configurable, string $presetSlug): FlowConfig
+    public function applyPreset(Workable $configurable, string $presetSlug): Collection
     {
         $preset = FlowPreset::where('slug', $presetSlug)->where('is_active', true)->firstOrFail();
         $preset->load('steps.stepTemplate');
 
-        $config = FlowConfig::create([
-            'name' => $preset->name,
-            'description' => $preset->description,
-            'configurable_type' => get_class($configurable),
-            'configurable_id' => $configurable->getWorkflowKey(),
-            'workflow_preset_id' => $preset->id,
-            'status' => FlowStatus::Active,
-        ]);
-
         $order = 1;
+        $steps = [];
         foreach ($preset->steps as $presetStep) {
-            FlowConfigStep::create([
-                'flow_config_id' => $config->id,
+            $steps[] = FlowConfigStep::create([
+                'configurable_type' => get_class($configurable),
+                'configurable_id' => $configurable->getWorkflowKey(),
                 'flow_step_template_id' => $presetStep->workflow_step_template_id,
                 'name' => $presetStep->name ?? $presetStep->stepTemplate?->name,
                 'description' => $presetStep->stepTemplate?->description,
@@ -58,48 +51,41 @@ class FlowManager
             ]);
         }
 
-        return $config->load('steps');
+        return collect($steps);
     }
 
     /**
-     * Cria config manualmente a partir de steps definidos no formulário do workable (configuração inline).
-     * Cada item de $steps deve ter flow_step_template_id e order; opcional: default_role_id, estimated_duration_days, suggested_responsible_id.
+     * Cria etapas (FlowConfigStep) para o configurável a partir do array de steps.
      *
      * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null}>  $steps
+     * @return Collection<int, FlowConfigStep>
      */
-    public function createConfig(Workable $configurable, array $steps, ?string $name = null, ?string $description = null): FlowConfig
+    public function createStepsFor(Workable $configurable, array $steps, ?string $name = null, ?string $description = null): Collection
     {
-        $config = FlowConfig::create([
-            'name' => $name ?? 'Config '.class_basename($configurable),
-            'description' => $description,
-            'configurable_type' => get_class($configurable),
-            'configurable_id' => $configurable->getWorkflowKey(),
-            'workflow_preset_id' => null,
-            'status' => FlowStatus::Active,
-        ]);
+        $this->upsertStepsFor($configurable, $steps);
 
-        $this->upsertConfigSteps($config, $steps);
-
-        return $config->load('steps');
+        return $this->getStepsFor($configurable);
     }
 
     /**
-     * Sincroniza as etapas da config com o array enviado (create/update/remove).
-     * Usado quando o usuário edita o workable e altera o repeater de etapas no form.
+     * Sincroniza as etapas do configurável com o array enviado (create/update/remove).
      *
      * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null}>  $steps
      */
-    public function syncConfigSteps(FlowConfig $config, array $steps): void
+    public function syncStepsFor(Workable $configurable, array $steps): void
     {
         $incomingTemplateIds = collect($steps)->pluck('flow_step_template_id')->filter()->values()->toArray();
-        $config->steps()->whereNotIn('flow_step_template_id', $incomingTemplateIds)->delete();
-        $this->upsertConfigSteps($config, $steps);
+        FlowConfigStep::where('configurable_type', get_class($configurable))
+            ->where('configurable_id', $configurable->getWorkflowKey())
+            ->whereNotIn('flow_step_template_id', $incomingTemplateIds)
+            ->delete();
+        $this->upsertStepsFor($configurable, $steps);
     }
 
     /**
      * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null}>  $steps
      */
-    protected function upsertConfigSteps(FlowConfig $config, array $steps): void
+    protected function upsertStepsFor(Workable $configurable, array $steps): void
     {
         $order = 1;
         foreach ($steps as $stepData) {
@@ -113,7 +99,8 @@ class FlowManager
             }
             FlowConfigStep::updateOrCreate(
                 [
-                    'flow_config_id' => $config->id,
+                    'configurable_type' => get_class($configurable),
+                    'configurable_id' => $configurable->getWorkflowKey(),
                     'flow_step_template_id' => $templateId,
                 ],
                 [
@@ -131,29 +118,31 @@ class FlowManager
     }
 
     /**
-     * Retorna a config ativa do configurable (planograma, etc.), se existir.
+     * Retorna as etapas (FlowConfigStep) do configurável, ordenadas.
+     *
+     * @return Collection<int, FlowConfigStep>
      */
-    public function getConfigFor(Workable $configurable): ?FlowConfig
+    public function getStepsFor(Workable $configurable): Collection
     {
-        return FlowConfig::where('configurable_type', get_class($configurable))
+        return FlowConfigStep::where('configurable_type', get_class($configurable))
             ->where('configurable_id', $configurable->getWorkflowKey())
-            ->whereIn('status', [FlowStatus::Active, FlowStatus::Draft])
-            ->with('steps.stepTemplate')
-            ->first();
+            ->with('stepTemplate')
+            ->orderBy('order')
+            ->get();
     }
 
     /**
-     * Inicia a execução do workflow para um workable na primeira etapa da config.
-     * Cria a FlowExecution e marca como em andamento.
+     * Inicia a execução do workflow para um workable na primeira etapa do configurável.
      *
-     * @param  string|int  $startedByUserId  ID do usuário que está iniciando (será o responsável inicial)
+     * @param  string|int  $startedByUserId
      */
-    public function startExecution(Workable $workable, FlowConfig $config, string|int $startedByUserId): FlowExecution
+    public function startExecution(Workable $workable, Workable $configurable, string|int $startedByUserId): FlowExecution
     {
-        $firstStep = $config->steps()->where('is_active', true)->orderBy('order')->first();
+        $steps = $this->getStepsFor($configurable);
+        $firstStep = $steps->where('is_active', true)->sortBy('order')->first();
         if (! $firstStep) {
             throw ValidationException::withMessages([
-                'config' => 'A configuração do workflow não possui etapas ativas.',
+                'config' => 'O configurável não possui etapas ativas.',
             ]);
         }
 
@@ -198,15 +187,15 @@ class FlowManager
     }
 
     /**
-     * Cria uma execução pendente na primeira etapa da config (para seed ou onboarding).
-     * O workable aparece no Kanban na primeira coluna; ao clicar "Iniciar" chama startExecution.
+     * Cria uma execução pendente na primeira etapa do configurável.
      */
-    public function createPendingExecution(Workable $workable, FlowConfig $config): FlowExecution
+    public function createPendingExecution(Workable $workable, Workable $configurable): FlowExecution
     {
-        $firstStep = $config->steps()->where('is_active', true)->orderBy('order')->first();
+        $steps = $this->getStepsFor($configurable);
+        $firstStep = $steps->where('is_active', true)->sortBy('order')->first();
         if (! $firstStep) {
             throw ValidationException::withMessages([
-                'config' => 'A configuração do workflow não possui etapas ativas.',
+                'config' => 'O configurável não possui etapas ativas.',
             ]);
         }
 
@@ -238,14 +227,13 @@ class FlowManager
     }
 
     /**
-     * Move uma execução para outra etapa da mesma config.
-     * Atualiza a execução (nova etapa, status Pending, responsável limpo) e registra no histórico.
+     * Move uma execução para outra etapa do mesmo configurável.
      *
-     * @param  string|int|null  $movedByUserId  ID do usuário que está movendo (opcional)
+     * @param  string|int|null  $movedByUserId
      */
     public function moveExecution(FlowExecution $execution, FlowConfigStep $toStep, string|int|null $movedByUserId = null, ?string $notes = null): FlowExecution
     {
-        $execution->load('configStep.config');
+        $execution->load('configStep');
         $fromStep = $execution->configStep;
         if (! $fromStep) {
             throw ValidationException::withMessages([
@@ -253,10 +241,11 @@ class FlowManager
             ]);
         }
 
-        $config = $fromStep->config;
-        if (! $config || $toStep->flow_config_id !== $config->id) {
+        $sameConfigurable = $fromStep->configurable_type === $toStep->configurable_type
+            && $fromStep->configurable_id === $toStep->configurable_id;
+        if (! $sameConfigurable) {
             throw ValidationException::withMessages([
-                'to_step' => 'A etapa de destino não pertence à mesma configuração do workflow.',
+                'to_step' => 'A etapa de destino não pertence ao mesmo configurável do workflow.',
             ]);
         }
 
@@ -316,23 +305,16 @@ class FlowManager
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
-    /**
-     * Valida se é permitido mover da etapa atual para a de destino (não pular etapas obrigatórias).
-     */
     protected function validateCanMoveToStep(FlowConfigStep $fromStep, FlowConfigStep $toStep): void
     {
-        $config = $fromStep->config;
-        if (! $config) {
-            return;
-        }
-
         $fromOrder = (int) $fromStep->order;
         $toOrder = (int) $toStep->order;
         if ($toOrder <= $fromOrder) {
             return;
         }
 
-        $stepsBetween = $config->steps()
+        $stepsBetween = FlowConfigStep::where('configurable_type', $fromStep->configurable_type)
+            ->where('configurable_id', $fromStep->configurable_id)
             ->where('is_active', true)
             ->where('order', '>', $fromOrder)
             ->where('order', '<', $toOrder)
@@ -349,7 +331,6 @@ class FlowManager
 
     /**
      * Inicia uma execução que está Pendente (transição para Em andamento).
-     * Usado quando o usuário clica em "Iniciar" no Kanban.
      *
      * @param  string|int  $startedByUserId
      */
@@ -393,11 +374,6 @@ class FlowManager
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
-    /**
-     * Pausa uma execução em andamento.
-     *
-     * @param  string|int|null  $pausedByUserId
-     */
     public function pauseExecution(FlowExecution $execution, string|int|null $pausedByUserId = null): FlowExecution
     {
         if ($execution->status !== FlowStatus::InProgress) {
@@ -423,11 +399,6 @@ class FlowManager
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
-    /**
-     * Retoma uma execução pausada.
-     *
-     * @param  string|int|null  $resumedByUserId
-     */
     public function resumeExecution(FlowExecution $execution, string|int|null $resumedByUserId = null): FlowExecution
     {
         if ($execution->status !== FlowStatus::Paused || ! $execution->paused_at) {
@@ -457,12 +428,6 @@ class FlowManager
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
-    /**
-     * Reatribui a execução para outro usuário.
-     *
-     * @param  string|int  $assignedByUserId
-     * @param  string|int  $assignedToUserId
-     */
     public function assignExecution(FlowExecution $execution, string|int $assignedByUserId, string|int $assignedToUserId, ?string $notes = null): FlowExecution
     {
         if (! in_array($execution->status, [FlowStatus::Pending, FlowStatus::InProgress], true)) {
@@ -495,11 +460,6 @@ class FlowManager
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
-    /**
-     * Responsável atual abandona a etapa (volta para Pendente para outro assumir).
-     *
-     * @param  string|int  $abandonedByUserId
-     */
     public function abandonExecution(FlowExecution $execution, string|int $abandonedByUserId): FlowExecution
     {
         if ($execution->status !== FlowStatus::InProgress) {
@@ -534,9 +494,6 @@ class FlowManager
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
-    /**
-     * Atualiza as notas da execução (sem registrar no histórico).
-     */
     public function updateExecutionNotes(FlowExecution $execution, string $notes): FlowExecution
     {
         $execution->update(['notes' => $notes]);

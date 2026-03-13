@@ -1,8 +1,16 @@
 <?php
 
+use Callcocam\LaravelRaptorFlow\Http\Controllers\FlowController;
 use Callcocam\LaravelRaptorFlow\Http\Controllers\FlowExecutionController;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Illuminate\Support\Facades\Route;
+
+/*
+| Fluxo (Flow): recurso que agrupa step templates, configs e execuções.
+| Ex.: "Gerenciamento de planogramas" — acessível por slug.
+*/
+Route::get('flows', [FlowController::class, 'index'])->name('flow.index');
+Route::get('flows/{flow:slug}', [FlowController::class, 'show'])->name('flow.show');
 
 /*
 | Rotas de ações em execuções (flow). O contexto "qual fluxo" (gôndolas, campanhas, etc.)

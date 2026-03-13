@@ -6,6 +6,10 @@ use Illuminate\Support\Str;
 
 trait UsesFlowConnection
 {
+    /**
+     * Conexão das tabelas flow_*. Use config('flow.connection') para banco principal (landlord);
+     * quando null, usa a conexão default do request.
+     */
     public function getConnectionName(): ?string
     {
         return config('flow.connection') ?? parent::getConnectionName();

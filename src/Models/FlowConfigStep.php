@@ -8,7 +8,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
+/**
+ * Etapa de workflow associada a um configurável (ex.: Planograma).
+ * Relaciona FlowStepTemplate ao configurável; FlowExecution aponta para FlowConfigStep.
+ * Estrutura: Planograma → FlowConfigSteps → FlowStepTemplate; FlowExecution → FlowConfigStep.
+ */
 class FlowConfigStep extends Model
 {
     use HasUlids;
@@ -17,7 +23,8 @@ class FlowConfigStep extends Model
     protected $flowTableBaseName = 'config_steps';
 
     protected $fillable = [
-        'flow_config_id',
+        'configurable_type',
+        'configurable_id',
         'flow_step_template_id',
         'name',
         'description',
@@ -52,9 +59,9 @@ class FlowConfigStep extends Model
         ];
     }
 
-    public function config(): BelongsTo
+    public function configurable(): MorphTo
     {
-        return $this->belongsTo(FlowConfig::class, 'flow_config_id');
+        return $this->morphTo();
     }
 
     public function stepTemplate(): BelongsTo

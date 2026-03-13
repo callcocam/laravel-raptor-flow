@@ -5,6 +5,7 @@ namespace Callcocam\LaravelRaptorFlow\Models;
 use Callcocam\LaravelRaptorFlow\Traits\UsesFlowConnection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
@@ -16,6 +17,11 @@ class FlowStepTemplate extends Model
     use UsesFlowConnection;
 
     protected $fillable = [
+        'user_id',
+        'tenant_id',
+        'flow_id',
+        'template_next_step_id',
+        'template_previous_step_id',
         'name',
         'slug',
         'description',
@@ -44,6 +50,11 @@ class FlowStepTemplate extends Model
         ];
     }
 
+    public function flow(): BelongsTo
+    {
+        return $this->belongsTo(Flow::class, 'flow_id');
+    }
+
     public function presetSteps(): HasMany
     {
         return $this->hasMany(FlowPresetStep::class, 'workflow_step_template_id');
@@ -52,6 +63,22 @@ class FlowStepTemplate extends Model
     public function configSteps(): HasMany
     {
         return $this->hasMany(FlowConfigStep::class, 'flow_step_template_id');
+    }
+
+    /**
+     * Próximo template na sequência.
+     */
+    public function templateNextStep(): BelongsTo
+    {
+        return $this->belongsTo(FlowStepTemplate::class, 'template_next_step_id');
+    }
+
+    /**
+     * Template anterior na sequência.
+     */
+    public function templatePreviousStep(): BelongsTo
+    {
+        return $this->belongsTo(FlowStepTemplate::class, 'template_previous_step_id');
     }
 
     /**
@@ -143,4 +170,40 @@ class FlowStepTemplate extends Model
 
         return $defaults;
     }
+
+    
+    /**
+     * Retorna as categorias disponíveis
+     */
+    public static function getCategories(): array
+    {
+        return [
+            'criacao' => 'Criação',
+            'analise' => 'Análise',
+            'aprovacao' => 'Aprovação',
+            'revisao' => 'Revisão',
+            'logistica' => 'Logística',
+            'execucao' => 'Execução',
+            'validacao' => 'Validação',
+            'finalizacao' => 'Finalização',
+        ];
+    }
+
+    /**
+     * Retorna as cores disponíveis para templates
+     */
+    public static function getColors(): array
+    {
+        return [
+            'blue' => 'Azul',
+            'green' => 'Verde',
+            'yellow' => 'Amarelo',
+            'red' => 'Vermelho',
+            'purple' => 'Roxo',
+            'pink' => 'Rosa',
+            'indigo' => 'Índigo',
+            'gray' => 'Cinza',
+        ];
+    }
+
 }

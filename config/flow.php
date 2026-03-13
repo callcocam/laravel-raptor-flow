@@ -9,14 +9,11 @@
 return [
     /*
     |--------------------------------------------------------------------------
-    | Path das migrations (client)
+    | Path das migrations (client) — obsoleto quando flow está no landlord
     |--------------------------------------------------------------------------
     |
-    | Definido em tempo de execução pelo ServiceProvider quando as migrations
-    | do flow rodam por cliente (database/migrations/clients). Use este path
-    | junto com database/migrations/clients em ClientMigrationService.
-    | Alternativa: publique com --tag=raptor-flow-client-migrations para
-    | copiar as migrations para database/migrations/clients/.
+    | Quando null, as tabelas flow ficam só no banco principal; as migrations
+    | do flow devem estar em database/migrations/ da app (não em clients).
     |
     */
     'client_migrations_path' => null,
@@ -26,11 +23,11 @@ return [
     | Conexão de banco de dados
     |--------------------------------------------------------------------------
     |
-    | Conexão usada pelas tabelas flow_*. Em aplicações multi-tenant (ex.: Plannerate)
-    | costuma ser a conexão do client. Pode ser null para usar a conexão default.
+    | Conexão usada pelas tabelas flow_*. Padrão: mesmo do banco principal (landlord).
+    | Defina FLOW_DB_CONNECTION no .env para outro driver (ex.: tenant) se precisar.
     |
     */
-    'connection' => env('FLOW_DB_CONNECTION', null),
+    'connection' => env('FLOW_DB_CONNECTION', env('DB_CONNECTION')),
 
     /*
     |--------------------------------------------------------------------------
@@ -62,7 +59,7 @@ return [
     | Middleware aplicado: web + auth (ajuste em route_middleware se precisar).
     |
     */
-    'route_prefix' => env('FLOW_ROUTE_PREFIX', 'flow'),
+    'route_prefix' => env('FLOW_ROUTE_PREFIX', ''),
     'route_middleware' => ['web', 'auth'],
 
     /*

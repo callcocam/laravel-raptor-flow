@@ -15,15 +15,13 @@ return new class extends Migration
 
     public function up(): void
     {
-        $configsTable = $this->prefix.'configs';
         $configStepsTable = $this->prefix.'config_steps';
         $templatesTable = $this->prefix.'step_templates';
 
-        Schema::connection(config('flow.connection'))->create($this->prefix.'metrics', function (Blueprint $table) use ($configsTable, $configStepsTable, $templatesTable) {
+        Schema::connection(config('flow.connection'))->create($this->prefix.'metrics', function (Blueprint $table) use ($configStepsTable, $templatesTable) {
             $table->ulid('id')->primary();
             $table->string('workable_type');
             $table->ulid('workable_id');
-            $table->foreignUlid('flow_config_id')->constrained($configsTable)->cascadeOnDelete();
             $table->foreignUlid('flow_config_step_id')->constrained($configStepsTable)->cascadeOnDelete();
             $table->foreignUlid('flow_step_template_id')->constrained($templatesTable)->cascadeOnDelete();
             $table->unsignedInteger('total_duration_minutes')->nullable();

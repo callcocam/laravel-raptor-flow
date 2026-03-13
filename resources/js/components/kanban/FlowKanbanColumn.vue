@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import FlowKanbanCard from './FlowKanbanCard.vue';
-import type { FlowKanbanExecution, FlowKanbanPlanogramOption, FlowKanbanStep } from '../../types/kanban';
+import type { FlowKanbanExecution, FlowKanbanGroupConfig, FlowKanbanStep } from '../../types/kanban';
 import { computed, inject, ref, type Ref } from 'vue';
 
 interface Props {
   step: FlowKanbanStep;
   executions: FlowKanbanExecution[];
-  planograms?: FlowKanbanPlanogramOption[] | null;
+  /** Configs de grupo para validação de drop (ex: planogramas, projetos). */
+  groupConfigs?: FlowKanbanGroupConfig[] | null;
   userRoles?: string[];
   currentUserId?: string | null;
 }
@@ -19,7 +20,7 @@ const emit = defineEmits<{
 }>();
 
 const isDragOver = ref(false);
-const currentDragData = inject<Ref<{ planogramId: string; fromStepId: string } | null>>(
+const currentDragData = inject<Ref<{ groupId: string; fromStepId: string } | null>>(
   'flowKanbanDragData',
   ref(null)
 );
@@ -27,18 +28,18 @@ const currentDragData = inject<Ref<{ planogramId: string; fromStepId: string } |
 const isInvalidDrop = computed(() => {
   if (!isDragOver.value || !currentDragData.value) return false;
   if (currentDragData.value.fromStepId === props.step.id) return true;
-  return !canDropInColumn(currentDragData.value.planogramId, props.step.id);
+  return !canDropInColumn(currentDragData.value.groupId, props.step.id);
 });
 
 const overdueCount = computed(() =>
   props.executions.filter((e) => e.is_overdue).length
 );
 
-function canDropInColumn(planogramId: string, targetStepId: string): boolean {
-  if (!props.planograms?.length) return true;
-  const planogram = props.planograms.find((p) => p.id === planogramId);
-  if (!planogram?.configs) return true;
-  return planogram.configs.some((c) => c.id === targetStepId);
+function canDropInColumn(groupId: string, targetStepId: string): boolean {
+  if (!props.groupConfigs?.length) return true;
+  const group = props.groupConfigs.find((g) => g.id === groupId);
+  if (!group?.stepIds?.length) return true;
+  return group.stepIds.includes(targetStepId);
 }
 
 function handleDrop(event: DragEvent) {
@@ -50,9 +51,9 @@ function handleDrop(event: DragEvent) {
     const data = JSON.parse(raw);
     const workableId = data.gondolaId ?? data.workableId;
     const fromStepId = data.fromStepId;
-    const planogramId = data.planogramId ?? '';
+    const groupId = data.groupId ?? '';
     if (fromStepId === props.step.id) return;
-    if (!canDropInColumn(planogramId, props.step.id)) return;
+    if (!canDropInColumn(groupId, props.step.id)) return;
     emit('move', workableId, fromStepId, props.step.id);
   } catch {
     // ignore
