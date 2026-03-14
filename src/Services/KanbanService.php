@@ -157,11 +157,30 @@ class KanbanService
     // ── Output ────────────────────────────────────────────────────────────────
 
     /**
-     * Constrói e retorna os dados do board delegando ao KanbanBoard.
+     * Constrói e retorna os dados do board no shape esperado pelo frontend.
+     *
+     * Adapta a saída do KanbanBoard ({ steps, executions: { stepId: [...] } })
+     * para o formato FlowKanbanBoardTreeNode[] que o FlowKanbanView espera:
+     * array de steps com as executions de cada step já embutidas.
+     *
+     * @return array{board: array<mixed>, groupConfigs: array<mixed>, userRoles: array<mixed>, filters: array<mixed>}
      */
     public function getBoardData(): array
     {
-        return $this->buildBoard()->getBoardData();
+        $raw = $this->buildBoard()->getBoardData();
+
+        $steps = $raw['board']['steps'] ?? [];
+        $executions = $raw['board']['executions'] ?? [];
+
+        return [
+            'board' => array_map(fn ($step) => array_merge($step, [
+                'executions' => $executions[$step['id']] ?? [],
+                'configSteps' => [],
+            ]), $steps),
+            'groupConfigs' => $raw['groupConfigs'] ?? [],
+            'userRoles'    => $raw['userRoles'] ?? [],
+            'filters'      => $raw['filters'] ?? [],
+        ];
     }
 
     /**
