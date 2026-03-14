@@ -32,10 +32,6 @@ export interface FlowActionSchema {
   method?: 'get' | 'post' | 'patch' | 'put' | 'delete';
   url?: string;
   variant?: 'default' | 'outline' | 'destructive' | 'ghost' | 'secondary';
-  /** @deprecated Visibility is backend-driven via execution.action_visibility / execution.abilities. */
-  visibleStatuses?: string[] | null;
-  /** @deprecated Visibility is backend-driven via execution.action_visibility / execution.abilities. */
-  visible?: boolean;
   confirm?: { title: string; description?: string } | null;
   data?: Record<string, unknown>;
   /** Nome de componente customizado registrado no FlowActionRegistry */

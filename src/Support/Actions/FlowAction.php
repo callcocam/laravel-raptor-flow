@@ -47,9 +47,6 @@ abstract class FlowAction
 
     protected string|Closure|null $component = 'flow-action-button';
 
-    /** Status em que a ação é visível. null = sempre visível. */
-    protected ?array $visibleStatuses = null;
-
     protected ?array $confirm = null;
 
     protected array $data = [];
@@ -76,18 +73,6 @@ abstract class FlowAction
     public function method(string $method): static
     {
         $this->method = strtolower($method);
-
-        return $this;
-    }
-
-    /**
-     * Define em quais status da execução a ação é visível.
-     * Ex: ['pending'], ['in_progress'], ['paused']
-     * null = sempre visível.
-     */
-    public function visibleStatuses(array $statuses): static
-    {
-        $this->visibleStatuses = $statuses;
 
         return $this;
     }
@@ -156,7 +141,6 @@ abstract class FlowAction
             'method' => $this->method,
             'url' => $this->resolveUrl($target),
             'variant' => $this->evaluateConfiguredValue($this->variant, $target),
-            'visibleStatuses' => $this->visibleStatuses,
             'confirm' => $this->confirm,
             'data' => $this->data,
             'component' => $this->evaluateConfiguredValue($this->component, $target),
