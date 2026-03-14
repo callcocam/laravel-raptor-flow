@@ -6,7 +6,6 @@ import FlowKanbanHeader from './FlowKanbanHeader.vue';
 import type {
   DetailModalConfig,
   FlowActionSchema,
-  FlowKanbanActionConfig,
   FlowKanbanActionRequest,
 } from '../../types/detailModal';
 import type {
@@ -37,11 +36,6 @@ interface Props {
   cardConfig?: FlowKanbanCardConfig | null;
   /** Config do modal genérico. As ações devem ser FlowActionSchema[] gerados pelo backend. */
   detailModalConfig?: DetailModalConfig | null;
-  /**
-   * @deprecated Use FlowActionSchema.url nas ações do detailModalConfig.
-   * Mantido para compatibilidade com código existente.
-   */
-  actionConfig?: FlowKanbanActionConfig | null;
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -50,7 +44,6 @@ const props = withDefaults(defineProps<Props>(), {
   showFilters: true,
   cardConfig: null,
   detailModalConfig: null,
-  actionConfig: null,
 });
 
 const emit = defineEmits<{
@@ -102,12 +95,6 @@ function runRequest(req: FlowKanbanActionRequest) {
 }
 
 function handleMove(workableId: string, fromStepId: string, toStepId: string) {
-  if (props.actionConfig?.move) {
-    const req = props.actionConfig.move(workableId, fromStepId, toStepId);
-    runRequest({ ...req, data: req.data ?? { to_step_id: toStepId } });
-    return;
-  }
-
   runRequest({
     url: `/flow/executions/${workableId}/move`,
     method: 'post',
@@ -140,7 +127,6 @@ function handleClearFilters() {
 /**
  * Recebe o evento 'action' do FlowDetailModal.
  * Se a ação tem URL resolvido (backend-driven), executa via router.
- * Caso contrário, tenta o actionConfig legado.
  * Sempre emite o evento 'action' para que a página possa reagir também.
  */
 function handleModalAction(
@@ -158,25 +144,6 @@ function handleModalAction(
       data.notes = notes;
     }
     runRequest({ url: resolvedUrl, method: action.method ?? 'post', data });
-    return;
-  }
-
-  // Fallback: actionConfig legado
-  const ac = props.actionConfig;
-  if (!ac) return;
-  const legacyMap: Record<string, ((e: unknown) => FlowKanbanActionRequest) | undefined> = {
-    start: ac.start,
-    pause: ac.pause,
-    resume: ac.resume,
-    abandon: ac.abandon,
-  };
-  if (action.id === 'notes' && ac.updateNotes) {
-    runRequest(ac.updateNotes(execution, notes ?? ''));
-    return;
-  }
-  const fn = legacyMap[action.id];
-  if (fn) {
-    runRequest(fn(execution));
   }
 }
 </script>

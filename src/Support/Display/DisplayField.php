@@ -2,34 +2,46 @@
 
 namespace Callcocam\LaravelRaptorFlow\Support\Display;
 
+use Callcocam\LaravelRaptorFlow\Support\Concerns\EvaluatesConfiguredValues;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\FactoryPattern;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasFormat;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasComponent;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasPlaceholder;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasUrl;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasVariant;
+use Closure;
+
 class DisplayField
 {
-    protected ?string $label = null;
+    use EvaluatesConfiguredValues;
+    use FactoryPattern;
+    use HasComponent;
+    use HasFormat;
+    use HasPlaceholder;
+    use HasUrl;
+    use HasVariant;
 
-    protected ?string $format = null;
+    protected string|Closure|null $label = null;
 
-    protected ?string $url = null;
+    protected string|Closure|null $format = null;
+
+    protected string|Closure|null $url = null;
 
     protected ?bool $external = null;
 
-    protected ?string $variant = null;
+    protected string|Closure|null $variant = null;
 
-    protected ?string $component = null;
+    protected string|Closure|null $component = null;
 
-    protected ?string $placeholder = null;
+    protected string|Closure|null $placeholder = null;
 
-    /** @var array<int, array<string, mixed>> */
+    /** @var array<int, DisplayCardItem|array<string, mixed>> */
     protected array $cards = [];
 
     /** @var array<string, mixed> */
     protected array $meta = [];
 
     public function __construct(protected string $key, protected string $type = 'text') {}
-
-    public static function make(string $key, string $type = 'text'): static
-    {
-        return new static($key, $type);
-    }
 
     public static function text(string $key): static
     {
@@ -77,23 +89,9 @@ class DisplayField
         return static::make($key, 'selectUsers');
     }
 
-    public function labelText(string $label): static
+    public function labelText(string|Closure $label): static
     {
         $this->label = $label;
-
-        return $this;
-    }
-
-    public function format(string $format): static
-    {
-        $this->format = $format;
-
-        return $this;
-    }
-
-    public function url(string $url): static
-    {
-        $this->url = $url;
 
         return $this;
     }
@@ -105,34 +103,10 @@ class DisplayField
         return $this;
     }
 
-    public function variant(string $variant): static
-    {
-        $this->variant = $variant;
-
-        return $this;
-    }
-
-    public function component(string $component): static
-    {
-        $this->component = $component;
-
-        return $this;
-    }
-
-    public function placeholder(string $placeholder): static
-    {
-        $this->placeholder = $placeholder;
-
-        return $this;
-    }
-
     /** @param  array<int, DisplayCardItem|array<string, mixed>>  $cards */
     public function cardsItems(array $cards): static
     {
-        $this->cards = array_map(
-            fn (DisplayCardItem|array $card): array => $card instanceof DisplayCardItem ? $card->toArray() : $card,
-            $cards,
-        );
+        $this->cards = $cards;
 
         return $this;
     }
@@ -145,19 +119,25 @@ class DisplayField
         return $this;
     }
 
-    public function toArray(): array
+    public function toArray(mixed $target = null): array
     {
+        $cards = [];
+
+        foreach ($this->cards as $card) {
+            $cards[] = $card instanceof DisplayCardItem ? $card->toArray($target) : $card;
+        }
+
         return array_filter([
             'key' => $this->key,
             'type' => $this->type,
-            'label' => $this->label,
-            'format' => $this->format,
-            'url' => $this->url,
+            'label' => $this->evaluateConfiguredValue($this->label, $target),
+            'format' => $this->evaluateConfiguredValue($this->format, $target),
+            'url' => $this->evaluateConfiguredValue($this->url, $target),
             'external' => $this->external,
-            'variant' => $this->variant,
-            'component' => $this->component,
-            'placeholder' => $this->placeholder,
-            'cards' => $this->cards ?: null,
+            'variant' => $this->evaluateConfiguredValue($this->variant, $target),
+            'component' => $this->evaluateConfiguredValue($this->component, $target),
+            'placeholder' => $this->evaluateConfiguredValue($this->placeholder, $target),
+            'cards' => $cards ?: null,
             'meta' => $this->meta ?: null,
         ], fn (mixed $value): bool => $value !== null);
     }

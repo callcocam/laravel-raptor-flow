@@ -58,13 +58,3 @@ export interface FlowKanbanActionRequest {
   method?: 'get' | 'post' | 'patch' | 'put' | 'delete';
   data?: Record<string, unknown>;
 }
-
-/** @deprecated Use FlowActionSchema no DetailModalConfig.actions em vez disso */
-export interface FlowKanbanActionConfig {
-  move?: (workableId: string, fromStepId: string, toStepId: string) => FlowKanbanActionRequest;
-  start?: (execution: unknown) => FlowKanbanActionRequest;
-  pause?: (execution: unknown) => FlowKanbanActionRequest;
-  resume?: (execution: unknown) => FlowKanbanActionRequest;
-  abandon?: (execution: unknown) => FlowKanbanActionRequest;
-  updateNotes?: (execution: unknown, notes: string) => FlowKanbanActionRequest;
-}

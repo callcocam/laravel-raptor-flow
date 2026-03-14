@@ -8,6 +8,12 @@
 
 namespace Callcocam\LaravelRaptorFlow\Support\Actions;
 
+use Callcocam\LaravelRaptorFlow\Support\Concerns\EvaluatesConfiguredValues;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasComponent;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasIcon;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasLabel;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasUrl;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasVariant;
 use Closure;
 use Illuminate\Support\Facades\Route;
 use Throwable;
@@ -20,19 +26,26 @@ use Throwable;
  */
 abstract class FlowAction
 {
+    use EvaluatesConfiguredValues;
+    use HasComponent;
+    use HasIcon;
+    use HasLabel;
+    use HasUrl;
+    use HasVariant;
+
     protected string $id = '';
 
-    protected string $label = '';
+    protected string|Closure $label = '';
 
-    protected ?string $icon = null;
+    protected string|Closure|null $icon = null;
 
     protected string $method = 'post';
 
     protected string|Closure $url = '#';
 
-    protected string $variant = 'outline';
+    protected string|Closure $variant = 'outline';
 
-    protected ?string $component = 'flow-action-button';
+    protected string|Closure|null $component = 'flow-action-button';
 
     /** Status em que a ação é visível. null = sempre visível. */
     protected ?array $visibleStatuses = null;
@@ -60,48 +73,9 @@ abstract class FlowAction
         return $this;
     }
 
-    public function label(string $label): static
-    {
-        $this->label = $label;
-
-        return $this;
-    }
-
-    public function icon(string $icon): static
-    {
-        $this->icon = $icon;
-
-        return $this;
-    }
-
     public function method(string $method): static
     {
         $this->method = strtolower($method);
-
-        return $this;
-    }
-
-    /**
-     * URL da ação. Pode conter placeholders {param} que o frontend resolve
-     * com os dados da execução. Ex: /flow/executions/{id}/start
-     */
-    public function url(string|Closure $url): static
-    {
-        $this->url = $url;
-
-        return $this;
-    }
-
-    public function variant(string $variant): static
-    {
-        $this->variant = $variant;
-
-        return $this;
-    }
-
-    public function component(?string $component): static
-    {
-        $this->component = $component;
 
         return $this;
     }
@@ -177,15 +151,15 @@ abstract class FlowAction
         return [
             'id' => $this->id,
             'type' => $this->type,
-            'label' => $this->label,
-            'icon' => $this->icon,
+            'label' => $this->evaluateConfiguredValue($this->label, $target),
+            'icon' => $this->evaluateConfiguredValue($this->icon, $target),
             'method' => $this->method,
             'url' => $this->resolveUrl($target),
-            'variant' => $this->variant,
+            'variant' => $this->evaluateConfiguredValue($this->variant, $target),
             'visibleStatuses' => $this->visibleStatuses,
             'confirm' => $this->confirm,
             'data' => $this->data,
-            'component' => $this->component,
+            'component' => $this->evaluateConfiguredValue($this->component, $target),
         ];
     }
 }

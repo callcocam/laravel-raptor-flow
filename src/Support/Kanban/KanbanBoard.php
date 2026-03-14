@@ -12,6 +12,7 @@ use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
 use Callcocam\LaravelRaptorFlow\Models\Flow;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Callcocam\LaravelRaptorFlow\Models\FlowStepTemplate;
+use Callcocam\LaravelRaptorFlow\Policies\FlowExecutionPolicy;
 use Callcocam\LaravelRaptorFlow\Support\Kanban\Columns\ExecutionColumn;
 use Closure;
 use Illuminate\Database\Eloquent\Builder;
@@ -346,12 +347,16 @@ class KanbanBoard
         $context = [
             'board' => $this,
             'usersById' => $usersById,
+            'authUser' => auth()->user(),
         ];
 
         return $executions->map(function (FlowExecution $execution) use ($context) {
             $status = $execution->status instanceof FlowStatus
                 ? $execution->status->value
                 : (string) $execution->status;
+
+            $authUser = $context['authUser'] ?? null;
+            $abilities = $authUser ? FlowExecutionPolicy::abilities($authUser, $execution) : null;
 
             $data = [
                 'id' => $execution->id,
@@ -368,6 +373,16 @@ class KanbanBoard
                     && ! in_array($status, ['completed', 'skipped'], true),
                 'notes' => $execution->notes,
                 'paused_at' => $execution->paused_at?->toIso8601String(),
+                'abilities' => $abilities,
+                'action_visibility' => [
+                    'start' => $abilities['can_start'] ?? false,
+                    'move' => $abilities['can_move'] ?? false,
+                    'pause' => $abilities['can_pause'] ?? false,
+                    'resume' => $abilities['can_resume'] ?? false,
+                    'assign' => $abilities['can_assign'] ?? false,
+                    'abandon' => $abilities['can_abandon'] ?? false,
+                    'notes' => $abilities['can_notes'] ?? false,
+                ],
             ];
 
             // Apply execution columns (domain enrichment)

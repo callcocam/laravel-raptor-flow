@@ -1,31 +1,34 @@
 <?php
 
+/**
+ * Created by Claudio Campos.
+ * User: callcocam@gmail.com, contato@sigasmart.com.br
+ * https://www.sigasmart.com.br
+ */
+
 namespace Callcocam\LaravelRaptorFlow\Support\Display;
+
+use Callcocam\LaravelRaptorFlow\Support\Concerns\EvaluatesConfiguredValues;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\FactoryPattern;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasLabel;
+use Closure;
 
 class DisplayColumn
 {
-    protected ?string $label = null;
+    use EvaluatesConfiguredValues;
+    use FactoryPattern;
+    use HasLabel;
 
-    protected ?string $style = null;
+    protected string|Closure|null $label = null;
 
-    /** @var array<int, array<string, mixed>> */
+    protected string|Closure|null $style = null;
+
+    /** @var array<int, DisplayField|array<string, mixed>> */
     protected array $fields = [];
 
     public function __construct(protected string $id) {}
 
-    public static function make(string $id): static
-    {
-        return new static($id);
-    }
-
-    public function label(string $label): static
-    {
-        $this->label = $label;
-
-        return $this;
-    }
-
-    public function style(string $style): static
+    public function style(string|Closure $style): static
     {
         $this->style = $style;
 
@@ -34,7 +37,7 @@ class DisplayColumn
 
     public function addField(DisplayField|array $field): static
     {
-        $this->fields[] = $field instanceof DisplayField ? $field->toArray() : $field;
+        $this->fields[] = $field;
 
         return $this;
     }
@@ -49,13 +52,19 @@ class DisplayColumn
         return $this;
     }
 
-    public function toArray(): array
+    public function toArray(mixed $target = null): array
     {
+        $fields = [];
+
+        foreach ($this->fields as $field) {
+            $fields[] = $field instanceof DisplayField ? $field->toArray($target) : $field;
+        }
+
         return array_filter([
             'id' => $this->id,
-            'label' => $this->label,
-            'style' => $this->style,
-            'fields' => $this->fields,
+            'label' => $this->evaluateConfiguredValue($this->label, $target),
+            'style' => $this->evaluateConfiguredValue($this->style, $target),
+            'fields' => $fields,
         ], fn (mixed $value): bool => $value !== null);
     }
 }

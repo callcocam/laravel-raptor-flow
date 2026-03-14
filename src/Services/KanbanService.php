@@ -132,9 +132,8 @@ class KanbanService
     /**
      * Registra uma action para o modal de detalhes.
      *
-     * A URL da action deve ser uma string estática ou conter placeholders {param}
-     * que o frontend resolve via resolveActionUrl(). Closures de URL não são
-     * suportados neste contexto (getDetailModalConfig é chamado sem execução).
+     * A URL da action pode ser uma string estática, conter placeholders {param}
+     * ou ser definida por callback sem dependências.
      */
     public function addAction(FlowAction $action): static
     {
@@ -207,8 +206,8 @@ class KanbanService
     /**
      * Monta o DetailModalConfig para o frontend.
      *
-     * As actions são serializadas sem contexto de execução — use placeholders
-     * {param} nas URLs em vez de Closures.
+        * As actions são serializadas em formato backend-driven para o frontend.
+        * Para depender da execução, prefira placeholders {param} em URLs.
      *
      * @return array{sections: array<mixed>, actions: array<mixed>, links: array<mixed>, notes: array<mixed>}
      */

@@ -1,60 +1,48 @@
 <?php
 
+/**
+ * Created by Claudio Campos.
+ * User: callcocam@gmail.com, contato@sigasmart.com.br
+ * https://www.sigasmart.com.br
+ */
+
 namespace Callcocam\LaravelRaptorFlow\Support\Display;
+
+use Callcocam\LaravelRaptorFlow\Support\Concerns\EvaluatesConfiguredValues;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\FactoryPattern;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasFormat;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasIcon;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasLabel;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasVariant;
+use Closure;
 
 class DisplayCardItem
 {
-    protected ?string $label = null;
+    use EvaluatesConfiguredValues;
+    use FactoryPattern;
+    use HasFormat;
+    use HasIcon;
+    use HasLabel;
+    use HasVariant;
 
-    protected ?string $format = null;
+    protected string|Closure|null $label = null;
 
-    protected ?string $icon = null;
+    protected string|Closure|null $format = null;
 
-    protected ?string $variant = null;
+    protected string|Closure|null $icon = null;
+
+    protected string|Closure|null $variant = null;
 
     public function __construct(protected string $key) {}
 
-    public static function make(string $key): static
-    {
-        return new static($key);
-    }
-
-    public function label(string $label): static
-    {
-        $this->label = $label;
-
-        return $this;
-    }
-
-    public function format(string $format): static
-    {
-        $this->format = $format;
-
-        return $this;
-    }
-
-    public function icon(string $icon): static
-    {
-        $this->icon = $icon;
-
-        return $this;
-    }
-
-    public function variant(string $variant): static
-    {
-        $this->variant = $variant;
-
-        return $this;
-    }
-
-    public function toArray(): array
+    public function toArray(mixed $target = null): array
     {
         return array_filter([
             'key' => $this->key,
-            'label' => $this->label,
-            'format' => $this->format,
-            'icon' => $this->icon,
-            'variant' => $this->variant,
+            'label' => $this->evaluateConfiguredValue($this->label, $target),
+            'format' => $this->evaluateConfiguredValue($this->format, $target),
+            'icon' => $this->evaluateConfiguredValue($this->icon, $target),
+            'variant' => $this->evaluateConfiguredValue($this->variant, $target),
         ], fn (mixed $value): bool => $value !== null);
     }
 }

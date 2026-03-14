@@ -1,29 +1,32 @@
 <?php
 
+/**
+ * Created by Claudio Campos.
+ * User: callcocam@gmail.com, contato@sigasmart.com.br
+ * https://www.sigasmart.com.br
+ */
+
 namespace Callcocam\LaravelRaptorFlow\Support\Display;
+
+use Callcocam\LaravelRaptorFlow\Support\Concerns\EvaluatesConfiguredValues;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\FactoryPattern;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasLabel;
+use Closure;
 
 class DisplaySection
 {
-    protected ?string $label = null;
+    use EvaluatesConfiguredValues;
+    use FactoryPattern;
+    use HasLabel;
+
+    protected string|Closure|null $label = null;
 
     protected int $columnSpan = 12;
 
-    /** @var array<int, array<string, mixed>> */
+    /** @var array<int, DisplayRow|array<string, mixed>> */
     protected array $rows = [];
 
     public function __construct(protected string $id) {}
-
-    public static function make(string $id): static
-    {
-        return new static($id);
-    }
-
-    public function label(string $label): static
-    {
-        $this->label = $label;
-
-        return $this;
-    }
 
     public function columnSpan(int $columnSpan): static
     {
@@ -34,7 +37,7 @@ class DisplaySection
 
     public function addRow(DisplayRow|array $row): static
     {
-        $this->rows[] = $row instanceof DisplayRow ? $row->toArray() : $row;
+        $this->rows[] = $row;
 
         return $this;
     }
@@ -44,13 +47,19 @@ class DisplaySection
         return $this->addRow(DisplayRow::make()->addField($field));
     }
 
-    public function toArray(): array
+    public function toArray(mixed $target = null): array
     {
+        $rows = [];
+
+        foreach ($this->rows as $row) {
+            $rows[] = $row instanceof DisplayRow ? $row->toArray($target) : $row;
+        }
+
         return array_filter([
             'id' => $this->id,
-            'label' => $this->label,
+            'label' => $this->evaluateConfiguredValue($this->label, $target),
             'columnSpan' => $this->columnSpan,
-            'rows' => $this->rows,
+            'rows' => $rows,
         ], fn (mixed $value): bool => $value !== null);
     }
 }

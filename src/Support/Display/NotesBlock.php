@@ -1,48 +1,41 @@
 <?php
 
+/**
+ * Created by Claudio Campos.
+ * User: callcocam@gmail.com, contato@sigasmart.com.br
+ * https://www.sigasmart.com.br
+ */
+
 namespace Callcocam\LaravelRaptorFlow\Support\Display;
+
+use Callcocam\LaravelRaptorFlow\Support\Concerns\EvaluatesConfiguredValues;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\FactoryPattern;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasLabel;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasPlaceholder;
+use Callcocam\LaravelRaptorFlow\Support\Concerns\HasUrl;
+use Closure;
 
 class NotesBlock
 {
-    protected string $label = 'Notas';
+    use EvaluatesConfiguredValues;
+    use FactoryPattern;
+    use HasLabel;
+    use HasPlaceholder;
+    use HasUrl;
 
-    protected ?string $placeholder = null;
+    protected string|Closure $label = 'Notas';
 
-    public function __construct(protected string $id = 'notes', protected string $url = '#') {}
+    protected string|Closure|null $placeholder = null;
 
-    public static function make(string $id = 'notes'): static
-    {
-        return new static($id);
-    }
+    public function __construct(protected string $id = 'notes', protected string|Closure $url = '#') {}
 
-    public function label(string $label): static
-    {
-        $this->label = $label;
-
-        return $this;
-    }
-
-    public function url(string $url): static
-    {
-        $this->url = $url;
-
-        return $this;
-    }
-
-    public function placeholder(string $placeholder): static
-    {
-        $this->placeholder = $placeholder;
-
-        return $this;
-    }
-
-    public function toArray(): array
+    public function toArray(mixed $target = null): array
     {
         return array_filter([
             'id' => $this->id,
-            'label' => $this->label,
-            'url' => $this->url,
-            'placeholder' => $this->placeholder,
+            'label' => $this->evaluateConfiguredValue($this->label, $target),
+            'url' => $this->evaluateConfiguredValue($this->url, $target),
+            'placeholder' => $this->evaluateConfiguredValue($this->placeholder, $target),
         ], fn (mixed $value): bool => $value !== null);
     }
 }

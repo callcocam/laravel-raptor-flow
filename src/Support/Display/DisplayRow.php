@@ -1,20 +1,25 @@
 <?php
 
+/**
+ * Created by Claudio Campos.
+ * User: callcocam@gmail.com, contato@sigasmart.com.br
+ * https://www.sigasmart.com.br
+ */
+
 namespace Callcocam\LaravelRaptorFlow\Support\Display;
+
+use Callcocam\LaravelRaptorFlow\Support\Concerns\FactoryPattern;
 
 class DisplayRow
 {
-    /** @var array<int, array<string, mixed>> */
-    protected array $fields = [];
+    use FactoryPattern;
 
-    public static function make(): static
-    {
-        return new static;
-    }
+    /** @var array<int, DisplayField|array<string, mixed>> */
+    protected array $fields = [];
 
     public function addField(DisplayField|array $field): static
     {
-        $this->fields[] = $field instanceof DisplayField ? $field->toArray() : $field;
+        $this->fields[] = $field;
 
         return $this;
     }
@@ -29,10 +34,16 @@ class DisplayRow
         return $this;
     }
 
-    public function toArray(): array
+    public function toArray(mixed $target = null): array
     {
+        $fields = [];
+
+        foreach ($this->fields as $field) {
+            $fields[] = $field instanceof DisplayField ? $field->toArray($target) : $field;
+        }
+
         return [
-            'fields' => $this->fields,
+            'fields' => $fields,
         ];
     }
 }
