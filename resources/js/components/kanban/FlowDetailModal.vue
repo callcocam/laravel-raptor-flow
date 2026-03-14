@@ -10,10 +10,10 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import FlowActionRenderer from '../actions/FlowActionRenderer.vue'
 import DisplayFieldRenderer from './DisplayFieldRenderer.vue'
 import { resolveActionUrl } from '../../composables/useFlowAction'
-import { formatDisplayValue, resolveFieldValue } from '../../composables/display'
+import { resolveFieldValue } from '../../composables/display'
 import NoteBlockRenderer from './NoteBlockRenderer.vue'
 import type { DetailModalConfig, DetailModalLinkConfig, FlowActionSchema } from '../../types/detailModal'
-import type { DisplayFieldConfig, DisplayRowConfig, DisplaySectionConfig } from '../../types/display'
+import type { DisplayRowConfig, DisplaySectionConfig } from '../../types/display'
 import type { FlowKanbanExecution, FlowKanbanStep } from '../../types/kanban'
 import { AlertCircle, CheckCircle, Clock, ExternalLink, Pause, Play, XCircle } from 'lucide-vue-next'
 import { computed } from 'vue'
@@ -68,12 +68,12 @@ function resolveLink(url: string | ((e: unknown) => string), execution: FlowKanb
 function isActionVisible(action: FlowActionSchema): boolean {
   const execution = props.execution
 
-  // Primary source of truth: backend policy-driven visibility map.
+  // Fonte primária de verdade: mapa de visibilidade dirigido por policy no backend.
   if (execution?.action_visibility && action.id in execution.action_visibility) {
     return Boolean(execution.action_visibility[action.id])
   }
 
-  // Compatibility fallback when only abilities map is available.
+  // Compatibilidade para cenários em que apenas o mapa de abilities está disponível.
   if (execution?.abilities) {
     const abilityKey = action.id === 'notes' ? 'can_notes' : `can_${action.id}`
     if (abilityKey in execution.abilities) {
@@ -81,7 +81,7 @@ function isActionVisible(action: FlowActionSchema): boolean {
     }
   }
 
-  // No backend visibility information means action should not be shown.
+  // Sem informação de visibilidade vinda do backend, a ação não deve ser exibida.
   return false
 }
 
@@ -98,10 +98,6 @@ const noteBlocks = computed(() => props.config?.notes ?? [])
 
 function getFieldValue(execution: FlowKanbanExecution, key: string): unknown {
   return resolveFieldValue(execution, { key, type: 'text' })
-}
-
-function formatFieldValue(value: unknown): string {
-  return formatDisplayValue(value)
 }
 
 function getSectionRows(section: DisplaySectionConfig): DisplayRowConfig[] {
@@ -138,8 +134,6 @@ function sectionSpanClass(section: DisplaySectionConfig): string {
 const timelineSteps = computed(() => {
   return props.steps ?? []
 })
-
-const currentStepId = computed(() => props.execution?.workflow_step_template_id ?? '')
 
 // --- Handlers ---
 function handleClose() {
@@ -261,7 +255,7 @@ function handleNoteSave(note: { id: string; label: string; url: string; placehol
                     </div>
 
                     <div v-else class="space-y-1">
-                      <label v-if="field.label && field.type !== 'link'" class="text-xs font-medium text-muted-foreground">
+                      <label v-if="field.label && field.type !== 'link' && !field.component" class="text-xs font-medium text-muted-foreground">
                         {{ field.label }}
                       </label>
 

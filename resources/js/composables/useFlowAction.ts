@@ -1,5 +1,5 @@
 /**
- * useFlowAction - Utilitários compartilhados pelos componentes de Action do Flow
+ * useFlowAction - Utilitarios compartilhados pelos componentes de acao do Flow.
  */
 
 import * as LucideIcons from 'lucide-vue-next'
@@ -10,7 +10,7 @@ import type { FlowKanbanExecution } from '../types/kanban'
 /**
  * Resolve placeholders {param} ou {nested.field} em uma URL com os dados da execução.
  *
- * Suporta dot notation:
+ * Suporta notacao por ponto:
  *   {id}           → execution.id
  *   {gondola.id}   → execution.gondola.id
  *   {workable.id}  → execution.workable.id
@@ -27,7 +27,7 @@ export function resolveActionUrl(url: string, execution: FlowKanbanExecution): s
   })
 }
 
-/** Mapa de variant → classes Tailwind */
+/** Mapa de variante para classes Tailwind. */
 export function variantClass(variant?: FlowActionSchema['variant']): string {
   const map: Record<string, string> = {
     default: 'bg-primary text-primary-foreground hover:bg-primary/90',
@@ -39,7 +39,7 @@ export function variantClass(variant?: FlowActionSchema['variant']): string {
   return map[variant ?? 'outline'] ?? map.outline
 }
 
-/** Retorna o componente de ícone do Lucide pelo nome ou null */
+/** Retorna o componente de icone do Lucide pelo nome, ou null. */
 export function useActionIcon(action: FlowActionSchema) {
   return computed(() => {
     if (!action.icon) return null

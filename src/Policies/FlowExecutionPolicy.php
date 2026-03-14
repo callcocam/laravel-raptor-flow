@@ -11,6 +11,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
  * Policy padrão context-aware: mesma validação que a app pode ter.
  * - start: execução Pending e usuário elegível (suggested_responsible, participants ou role via config).
  * - pause, resume, move, assign, abandon, notes: execução InProgress/Paused e usuário é o responsável (ou admin).
+ * - Role gate: se FlowConfigStep.default_role_id estiver definida, bloqueia todos os usuários sem a role,
+ *   inclusive administradores. Sem bypass.
  *
  * Crie App\Policies\FlowExecutionPolicy apenas em casos bem específicos; o padrão já cobre role e responsáveis.
  */
@@ -19,6 +21,10 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
     public function start(Authenticatable $user, FlowExecution $execution): bool
     {
         if ($user === null) {
+            return false;
+        }
+
+        if (! $this->userPassesRoleGate($user, $execution)) {
             return false;
         }
 
@@ -89,6 +95,10 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             return false;
         }
 
+        if (! $this->userPassesRoleGate($user, $execution)) {
+            return false;
+        }
+
         if ($this->hasAdminPermission($user)) {
             return true;
         }
@@ -105,6 +115,27 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
         return (string) $responsibleId === (string) $user->getAuthIdentifier();
     }
 
+    /**
+     * Verifica se o usuário atende à role obrigatória da etapa.
+     * Quando default_role_id está definido, bloqueia usuários sem a role — sem bypass de admin.
+     */
+    protected function userPassesRoleGate(Authenticatable $user, FlowExecution $execution): bool
+    {
+        $execution->loadMissing('configStep');
+        $step = $execution->configStep;
+
+        if (! $step || ! $step->default_role_id) {
+            return true;
+        }
+
+        $checkRole = config('flow.policy.check_role');
+        if (! is_callable($checkRole)) {
+            return true;
+        }
+
+        return (bool) $checkRole($user, $step->default_role_id);
+    }
+
     protected function isEligibleToStart(Authenticatable $user, FlowExecution $execution): bool
     {
         $execution->loadMissing('configStep.participants');
@@ -117,11 +148,6 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
         $userId = (string) $user->getAuthIdentifier();
 
         if ($step->suggested_responsible_id && (string) $step->suggested_responsible_id === $userId) {
-            return true;
-        }
-
-        $checkRole = config('flow.policy.check_role');
-        if ($step->default_role_id && is_callable($checkRole) && $checkRole($user, $step->default_role_id)) {
             return true;
         }
 

@@ -45,7 +45,7 @@ abstract class FlowAction
 
     protected string|Closure $variant = 'outline';
 
-    protected string|Closure|null $component = 'flow-action-button';
+    protected string|Closure|null $component = ActionComponents::BUTTON;
 
     protected ?array $confirm = null;
 
@@ -98,6 +98,31 @@ abstract class FlowAction
         $this->data = $data;
 
         return $this;
+    }
+
+    public function defaultComponent(): static
+    {
+        return $this->component(ActionComponents::forActionId($this->id));
+    }
+
+    public function buttonComponent(): static
+    {
+        return $this->component(ActionComponents::BUTTON);
+    }
+
+    public function confirmComponent(): static
+    {
+        return $this->component(ActionComponents::CONFIRM);
+    }
+
+    public function notesComponent(): static
+    {
+        return $this->component(ActionComponents::NOTES);
+    }
+
+    public function linkComponent(): static
+    {
+        return $this->component(ActionComponents::LINK);
     }
 
     /**

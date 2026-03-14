@@ -103,6 +103,11 @@ class DisplayField
         return $this;
     }
 
+    public function defaultComponent(): static
+    {
+        return $this->component(DisplayComponents::forType($this->type));
+    }
+
     /** @param  array<int, DisplayCardItem|array<string, mixed>>  $cards */
     public function cardsItems(array $cards): static
     {

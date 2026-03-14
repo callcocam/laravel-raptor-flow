@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { badgeClass } from '../../composables/display';
-import type { FlowKanbanCardConfig, DisplayFieldConfig } from '../../types/display';
+import type { FlowKanbanCardConfig } from '../../types/display';
 import type { FlowKanbanExecution } from '../../types/kanban';
 import DisplayFieldRenderer from './DisplayFieldRenderer.vue';
 import { computed, inject, ref, type Ref } from 'vue';
@@ -39,7 +39,14 @@ const canDrag = computed(() => {
   return true;
 });
 
-const configuredColumns = computed(() => props.cardConfig?.columns ?? []);
+const configuredColumns = computed(() => {
+  return (props.cardConfig?.columns ?? [])
+    .map((column) => ({
+      ...column,
+      fields: column.fields.filter((field) => field.key !== 'notes'),
+    }))
+    .filter((column) => column.fields.length > 0)
+});
 const hasConfiguredColumns = computed(() => configuredColumns.value.length > 0);
 
 const statusColor = computed(() => {
@@ -109,7 +116,7 @@ function handleClick() {
 
           <div class="space-y-2">
             <template v-for="field in column.fields" :key="`${column.id}-${field.key}`">
-              <p v-if="field.label && field.type !== 'link'" class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <p v-if="field.label && field.type !== 'link' && !field.component" class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 {{ field.label }}
               </p>
 
@@ -175,13 +182,6 @@ function handleClick() {
     >
       <span v-if="previousStepName" class="text-muted-foreground">← {{ previousStepName }}</span>
       <span v-if="nextStepName" class="text-muted-foreground">{{ nextStepName }} →</span>
-    </div>
-
-    <div
-      v-if="execution.notes"
-      class="mt-2 line-clamp-2 border-t pt-2 text-xs text-muted-foreground"
-    >
-      {{ execution.notes }}
     </div>
 
     <div class="mt-3 flex flex-wrap items-center gap-2 border-t pt-2">

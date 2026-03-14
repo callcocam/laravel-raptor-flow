@@ -81,7 +81,7 @@ export interface FlowKanbanBoardTreeNode {
   templateNextStep?: { id: string; name: string } | null;
   templatePreviousStep?: { id: string; name: string } | null;
   executions: FlowKanbanExecution[];
-  /** @deprecated Always empty in the new flat-executions format. */
+  /** @deprecated Compatibilidade com payload legado em formato de arvore. */
   configSteps: FlowKanbanBoardTreeConfigStep[];
 }
 

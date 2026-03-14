@@ -1,25 +1,8 @@
-/**
- * FlowActionRegistry - Gerencia o registro de componentes de acao do Flow.
- *
- * Permite registrar componentes padrao do pacote e componentes customizados
- * da aplicacao, seguindo o mesmo padrao de registro do ecossistema Raptor.
- *
- * @example
- * // Registrar componente customizado
- * FlowActionRegistry.register('flow-action-custom', CustomComponent)
- *
- * // Sobrescrever componente padrao
- * FlowActionRegistry.register('flow-action-button', MyButtonComponent)
- *
- * // Obter componente registrado
- * const component = FlowActionRegistry.get('flow-action-button')
- */
-
 import type { Component } from 'vue'
 
 type ComponentMap = Record<string, Component>
 
-class FlowActionRegistryClass {
+class FlowDisplayRegistryClass {
   private components: ComponentMap = {}
   private initialized = false
 
@@ -67,6 +50,6 @@ class FlowActionRegistryClass {
   }
 }
 
-export const FlowActionRegistry = new FlowActionRegistryClass()
-export { FlowActionRegistryClass }
-export default FlowActionRegistry
+export const FlowDisplayRegistry = new FlowDisplayRegistryClass()
+export { FlowDisplayRegistryClass }
+export default FlowDisplayRegistry

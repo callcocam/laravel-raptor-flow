@@ -24,6 +24,7 @@ class NotesAction extends FlowAction
         $this->label = 'Notas';
         $this->method = 'post';
         $this->executionRoute('flow.execution.notes');
+        $this->defaultComponent();
         $this->setUp();
     }
 

@@ -12,7 +12,7 @@ use Callcocam\LaravelRaptorFlow\Support\Kanban\Columns\ExecutionColumn;
 use Closure;
 
 /**
- * Thin wrapper fluente sobre KanbanBoard.
+ * Camada fluente sobre o KanbanBoard.
  *
  * Responsabilidades:
  *   - Acumular configuração via setters fluentes
@@ -60,7 +60,7 @@ class KanbanService
     /** @var array<array{key: string, label: string, url: string, external?: bool}> */
     protected array $modalLinks = [];
 
-    // ── Fluent setters ────────────────────────────────────────────────────────
+    // ── Setters fluentes ──────────────────────────────────────────────────────
 
     public function setFlow(Flow $flow): static
     {
@@ -183,10 +183,10 @@ class KanbanService
         return $this;
     }
 
-    // ── Output ────────────────────────────────────────────────────────────────
+    // ── Saida ─────────────────────────────────────────────────────────────────
 
     /**
-     * Constrói e retorna os dados do board no shape canônico do KanbanBoard.
+        * Constrói e retorna os dados do board no formato canônico do KanbanBoard.
      *
      * @return array{board: array{steps: array<mixed>, executions: array<string, array<mixed>>}, groupConfigs: array<mixed>, userRoles: array<mixed>, filters: array<mixed>, cardConfig: array{columns: array<mixed>}}
      */
@@ -206,8 +206,8 @@ class KanbanService
     /**
      * Monta o DetailModalConfig para o frontend.
      *
-        * As actions são serializadas em formato backend-driven para o frontend.
-        * Para depender da execução, prefira placeholders {param} em URLs.
+     * Acoes e notes sao serializados no backend; o frontend apenas renderiza
+     * e despacha as requisicoes.
      *
      * @return array{sections: array<mixed>, actions: array<mixed>, links: array<mixed>, notes: array<mixed>}
      */
@@ -254,7 +254,7 @@ class KanbanService
     }
 
     /**
-     * Retorna o valor de um filtro ou o default.
+    * Retorna o valor de um filtro ou o padrao.
      * Mantido para uso em subclasses (ex: App\Services\Workflow\KanbanService).
      */
     protected function getFilter(string $key, mixed $default = null): mixed
