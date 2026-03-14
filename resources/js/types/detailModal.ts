@@ -3,34 +3,9 @@
  * A aplicação ou backend passa DetailModalConfig para o FlowDetailModal.
  */
 
-export type DetailModalFieldType =
-  | 'text'
-  | 'textarea'
-  | 'editor'
-  | 'upload'
-  | 'image'
-  | 'selectUsers'
-  | 'datetime'
-  | 'badge'
-  | 'timeline'
-  | 'custom';
+import type { DisplaySectionConfig, NotesBlockConfig } from './display'
 
-export interface DetailModalFieldConfig {
-  key: string;
-  type: DetailModalFieldType;
-  label?: string;
-  placeholder?: string;
-  readOnly?: boolean;
-  options?: Array<{ value: string | number; label: string }>;
-  /** Para type custom: nome do slot ou componente que a app injeta */
-  component?: string;
-}
-
-export interface DetailModalSectionConfig {
-  id: string;
-  label?: string;
-  fields: DetailModalFieldConfig[];
-}
+export type DetailModalSectionConfig = DisplaySectionConfig
 
 export interface DetailModalLinkConfig {
   key: string;
@@ -57,8 +32,10 @@ export interface FlowActionSchema {
   method?: 'get' | 'post' | 'patch' | 'put' | 'delete';
   url?: string;
   variant?: 'default' | 'outline' | 'destructive' | 'ghost' | 'secondary';
-  /** Status em que a ação é visível. null/undefined = sempre visível. */
+  /** @deprecated Visibility is backend-driven via execution.action_visibility / execution.abilities. */
   visibleStatuses?: string[] | null;
+  /** @deprecated Visibility is backend-driven via execution.action_visibility / execution.abilities. */
+  visible?: boolean;
   confirm?: { title: string; description?: string } | null;
   data?: Record<string, unknown>;
   /** Nome de componente customizado registrado no FlowActionRegistry */
@@ -72,6 +49,7 @@ export interface DetailModalConfig {
   /** Ações do modal — preferencialmente geradas pelo backend via FlowAction::toArray() */
   actions: FlowActionSchema[];
   links?: DetailModalLinkConfig[];
+  notes?: NotesBlockConfig[];
 }
 
 /** Resultado de uma ação para o pacote executar via router (Inertia) */

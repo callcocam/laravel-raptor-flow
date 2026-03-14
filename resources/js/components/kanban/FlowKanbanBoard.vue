@@ -2,14 +2,17 @@
 import FlowKanbanColumn from './FlowKanbanColumn.vue';
 import type {
   FlowKanbanExecution,
+  FlowKanbanBoardMeta,
   FlowKanbanGroupConfig,
   FlowKanbanStep,
 } from '../../types/kanban';
+import type { FlowKanbanCardConfig } from '../../types/display';
 import { ref, provide } from 'vue';
 
 interface Props {
   steps: FlowKanbanStep[];
   executions: Record<string, FlowKanbanExecution[]>;
+  cardConfig?: FlowKanbanCardConfig | null;
   /** Configs de grupo para validação de drop entre colunas. */
   groupConfigs?: FlowKanbanGroupConfig[] | null;
   userRoles?: string[];
@@ -42,6 +45,7 @@ function handleCardClick(execution: FlowKanbanExecution) {
       :key="step.id"
       :step="step"
       :executions="executions[step.id] ?? []"
+      :card-config="cardConfig"
       :group-configs="groupConfigs"
       :user-roles="userRoles"
       :current-user-id="currentUserId"

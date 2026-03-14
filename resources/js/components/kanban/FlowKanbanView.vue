@@ -13,11 +13,13 @@ import type {
   FlowKanbanBoardData,
   FlowKanbanBoardPayload,
   FlowKanbanBoardRawData,
+  FlowKanbanBoardMeta,
   FlowKanbanExecution,
   FlowKanbanFilterConfig,
   FlowKanbanGroupConfig,
   FlowKanbanStep,
 } from '../../types/kanban';
+import type { FlowKanbanCardConfig } from '../../types/display';
 import { computed, ref } from 'vue';
 
 const ROUTER_OPTIONS = { preserveState: true, preserveScroll: true };
@@ -32,6 +34,7 @@ interface Props {
   title?: string;
   description?: string;
   showFilters?: boolean;
+  cardConfig?: FlowKanbanCardConfig | null;
   /** Config do modal genérico. As ações devem ser FlowActionSchema[] gerados pelo backend. */
   detailModalConfig?: DetailModalConfig | null;
   /**
@@ -45,6 +48,7 @@ const props = withDefaults(defineProps<Props>(), {
   groupConfigs: () => [],
   filters: () => ({ data: null }),
   showFilters: true,
+  cardConfig: null,
   detailModalConfig: null,
   actionConfig: null,
 });
@@ -69,6 +73,15 @@ const normalizedExecutions = computed<Record<string, FlowKanbanExecution[]>>(() 
     ? props.board.executions
     : Object.fromEntries((props.board as FlowKanbanBoardData).map((template) => [template.id, template.executions]))
 );
+
+const resolvedCardConfig = computed<FlowKanbanCardConfig | null>(() => {
+  if (props.cardConfig) {
+    return props.cardConfig
+  }
+
+  const meta = (props.board as FlowKanbanBoardRawData & FlowKanbanBoardMeta)
+  return meta.cardConfig ?? null
+})
 
 function isRawBoardData(board: FlowKanbanBoardPayload): board is FlowKanbanBoardRawData {
   return !Array.isArray(board);
@@ -192,6 +205,7 @@ function handleModalAction(
       <FlowKanbanBoard
         :steps="normalizedSteps"
         :executions="normalizedExecutions"
+        :card-config="resolvedCardConfig"
         :group-configs="groupConfigs"
         :user-roles="userRoles"
         :current-user-id="currentUserId"

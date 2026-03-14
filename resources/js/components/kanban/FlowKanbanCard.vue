@@ -1,10 +1,14 @@
 <script setup lang="ts">
+import { badgeClass } from '../../composables/display';
+import type { FlowKanbanCardConfig, DisplayFieldConfig } from '../../types/display';
 import type { FlowKanbanExecution } from '../../types/kanban';
+import DisplayFieldRenderer from './DisplayFieldRenderer.vue';
 import { computed, inject, ref, type Ref } from 'vue';
 
 interface Props {
   execution: FlowKanbanExecution;
   stepId: string;
+  cardConfig?: FlowKanbanCardConfig | null;
   nextStepName?: string | null;
   previousStepName?: string | null;
   userRoles?: string[];
@@ -35,21 +39,11 @@ const canDrag = computed(() => {
   return true;
 });
 
+const configuredColumns = computed(() => props.cardConfig?.columns ?? []);
+const hasConfiguredColumns = computed(() => configuredColumns.value.length > 0);
+
 const statusColor = computed(() => {
-  switch (props.execution.status) {
-    case 'pending':
-      return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
-    case 'in_progress':
-      return 'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300';
-    case 'completed':
-      return 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300';
-    case 'blocked':
-      return 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300';
-    case 'skipped':
-      return 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300';
-    default:
-      return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300';
-  }
+  return badgeClass(props.execution.status);
 });
 
 const statusLabel = computed(() => {
@@ -92,6 +86,7 @@ function handleDragEnd() {
 function handleClick() {
   emit('click', props.execution);
 }
+
 </script>
 
 <template>
@@ -105,6 +100,31 @@ function handleClick() {
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
   >
+    <template v-if="hasConfiguredColumns">
+      <div class="space-y-3">
+        <div v-for="column in configuredColumns" :key="column.id" class="space-y-2">
+          <p v-if="column.label" class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+            {{ column.label }}
+          </p>
+
+          <div class="space-y-2">
+            <template v-for="field in column.fields" :key="`${column.id}-${field.key}`">
+              <p v-if="field.label && field.type !== 'link'" class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                {{ field.label }}
+              </p>
+
+              <DisplayFieldRenderer
+                :field="field"
+                :execution="execution"
+                mode="card"
+              />
+            </template>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <template v-else>
     <div class="mb-2 flex items-start justify-between gap-2">
       <div class="min-w-0 flex-1">
         <h4 class="font-medium break-words text-card-foreground">
@@ -165,6 +185,18 @@ function handleClick() {
     </div>
 
     <div class="mt-3 flex flex-wrap items-center gap-2 border-t pt-2">
+      <button
+        type="button"
+        class="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm hover:bg-accent"
+        @click.stop="handleClick"
+      >
+        Detalhes
+      </button>
+      <slot name="actions" :execution="execution" />
+    </div>
+    </template>
+
+    <div v-if="hasConfiguredColumns" class="mt-3 flex flex-wrap items-center gap-2 border-t pt-2">
       <button
         type="button"
         class="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm hover:bg-accent"

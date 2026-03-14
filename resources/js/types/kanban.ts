@@ -1,3 +1,5 @@
+import type { FlowKanbanCardConfig } from './display'
+
 /**
  * Tipos genéricos para o Kanban do laravel-raptor-flow.
  * A aplicação pode estender ou fazer cast dos dados do backend para estes formatos.
@@ -49,6 +51,8 @@ export interface FlowKanbanExecution {
   startedBy?: { id: string; name: string } | null;
   users?: Array<{ id: string; name: string; email?: string }>;
   config?: { responsible_role?: { slug?: string }; users?: Array<{ id: string }> };
+  abilities?: Record<string, boolean> | null;
+  action_visibility?: Record<string, boolean>;
   permissions?: FlowKanbanExecutionPermissions;
 }
 
@@ -121,4 +125,8 @@ export interface FlowKanbanFilterConfig {
 export interface FlowKanbanFiltersState {
   data: FlowKanbanFilterConfig[] | null;
   values: Record<string, unknown>;
+}
+
+export interface FlowKanbanBoardMeta {
+  cardConfig?: FlowKanbanCardConfig | null;
 }

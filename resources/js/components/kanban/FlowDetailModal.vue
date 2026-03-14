@@ -8,8 +8,12 @@ import {
 } from '@/components/ui/dialog'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import FlowActionRenderer from '../actions/FlowActionRenderer.vue'
+import DisplayFieldRenderer from './DisplayFieldRenderer.vue'
 import { resolveActionUrl } from '../../composables/useFlowAction'
+import { formatDisplayValue, resolveFieldValue } from '../../composables/display'
+import NoteBlockRenderer from './NoteBlockRenderer.vue'
 import type { DetailModalConfig, DetailModalLinkConfig, FlowActionSchema } from '../../types/detailModal'
+import type { DisplayFieldConfig, DisplayRowConfig, DisplaySectionConfig } from '../../types/display'
 import type { FlowKanbanExecution, FlowKanbanStep } from '../../types/kanban'
 import { AlertCircle, CheckCircle, Clock, ExternalLink, Pause, Play, XCircle } from 'lucide-vue-next'
 import { computed } from 'vue'
@@ -62,8 +66,23 @@ function resolveLink(url: string | ((e: unknown) => string), execution: FlowKanb
 }
 
 function isActionVisible(action: FlowActionSchema): boolean {
-  if (!action.visibleStatuses?.length) return true
-  return action.visibleStatuses.includes(props.execution?.status ?? '')
+  const execution = props.execution
+
+  // Primary source of truth: backend policy-driven visibility map.
+  if (execution?.action_visibility && action.id in execution.action_visibility) {
+    return Boolean(execution.action_visibility[action.id])
+  }
+
+  // Compatibility fallback when only abilities map is available.
+  if (execution?.abilities) {
+    const abilityKey = action.id === 'notes' ? 'can_notes' : `can_${action.id}`
+    if (abilityKey in execution.abilities) {
+      return Boolean(execution.abilities[abilityKey])
+    }
+  }
+
+  // No backend visibility information means action should not be shown.
+  return false
 }
 
 const notesActions = computed(() =>
@@ -75,20 +94,45 @@ const buttonActions = computed(() =>
 )
 
 // --- Field helpers ---
+const noteBlocks = computed(() => props.config?.notes ?? [])
+
 function getFieldValue(execution: FlowKanbanExecution, key: string): unknown {
-  const ex = execution as unknown as Record<string, unknown>
-  if (ex[key] !== undefined) return ex[key]
-  const w = execution.workable
-  if (w && typeof w === 'object' && key in w) return (w as Record<string, unknown>)[key]
-  return undefined
+  return resolveFieldValue(execution, { key, type: 'text' })
 }
 
 function formatFieldValue(value: unknown): string {
-  if (value == null) return '—'
-  if (typeof value === 'object' && value !== null && 'name' in value && typeof (value as { name: unknown }).name === 'string') {
-    return (value as { name: string }).name
+  return formatDisplayValue(value)
+}
+
+function getSectionRows(section: DisplaySectionConfig): DisplayRowConfig[] {
+  if (section.rows?.length) {
+    return section.rows
   }
-  return String(value)
+
+  if (section.fields?.length) {
+    return [{ fields: section.fields }]
+  }
+
+  return []
+}
+
+function sectionSpanClass(section: DisplaySectionConfig): string {
+  const span = Math.min(12, Math.max(1, Number(section.columnSpan ?? 12)))
+  const classes: Record<number, string> = {
+    1: 'col-span-12 md:col-span-1',
+    2: 'col-span-12 md:col-span-2',
+    3: 'col-span-12 md:col-span-3',
+    4: 'col-span-12 md:col-span-4',
+    5: 'col-span-12 md:col-span-5',
+    6: 'col-span-12 md:col-span-6',
+    7: 'col-span-12 md:col-span-7',
+    8: 'col-span-12 md:col-span-8',
+    9: 'col-span-12 md:col-span-9',
+    10: 'col-span-12 md:col-span-10',
+    11: 'col-span-12 md:col-span-11',
+    12: 'col-span-12 md:col-span-12',
+  }
+  return classes[span] ?? classes[12]
 }
 
 const timelineSteps = computed(() => {
@@ -106,6 +150,25 @@ function handleActionExecute(action: FlowActionSchema, notes?: string) {
   if (!props.execution) return
   const resolvedUrl = resolveActionUrl(action.url ?? '', props.execution)
   emit('action', props.execution, action, resolvedUrl, notes)
+}
+
+function handleNoteSave(note: { id: string; label: string; url: string; placeholder?: string }, text: string) {
+  if (!props.execution) return
+
+  emit(
+    'action',
+    props.execution,
+    {
+      id: note.id,
+      type: 'notes',
+      label: note.label,
+      method: 'post',
+      url: note.url,
+      placeholder: note.placeholder,
+    },
+    resolveActionUrl(note.url, props.execution),
+    text,
+  )
 }
 </script>
 
@@ -172,130 +235,65 @@ function handleActionExecute(action: FlowActionSchema, notes?: string) {
 
       <!-- Sections + fields -->
       <ScrollArea v-if="execution && config" class="max-h-[calc(90vh-220px)] pr-4">
-        <div class="space-y-6">
+        <div class="grid grid-cols-12 gap-4">
           <template v-for="section in config.sections" :key="section.id">
             <!-- Custom section slot -->
-            <div v-if="$slots[`section-${section.id}`]" class="space-y-2">
+            <div v-if="$slots[`section-${section.id}`]" :class="sectionSpanClass(section)" class="space-y-2">
               <slot :name="`section-${section.id}`" :section="section" :execution="execution" />
             </div>
 
-            <div v-else class="space-y-3">
+            <div v-else :class="sectionSpanClass(section)" class="space-y-3 rounded-lg border bg-card p-4">
               <h3 v-if="section.label" class="text-sm font-semibold text-foreground">
                 {{ section.label }}
               </h3>
 
-              <div class="space-y-3">
-                <template v-for="field in section.fields" :key="field.key">
-                  <!-- Custom field slot -->
-                  <div v-if="$slots[`field-${field.key}`]" class="space-y-1">
-                    <slot
-                      :name="`field-${field.key}`"
-                      :field="field"
-                      :value="getFieldValue(execution, field.key)"
-                      :execution="execution"
-                    />
-                  </div>
-
-                  <div v-else class="space-y-1">
-                    <label v-if="field.label" class="text-xs font-medium text-muted-foreground">
-                      {{ field.label }}
-                    </label>
-
-                    <p v-if="field.type === 'text'" class="text-sm text-foreground">
-                      {{ formatFieldValue(getFieldValue(execution, field.key)) }}
-                    </p>
-
-                    <p v-else-if="field.type === 'textarea'" class="whitespace-pre-wrap text-sm text-foreground">
-                      {{ getFieldValue(execution, field.key) ?? '—' }}
-                    </p>
-
-                    <p v-else-if="field.type === 'datetime'" class="text-sm text-foreground">
-                      {{
-                        getFieldValue(execution, field.key)
-                          ? new Date(getFieldValue(execution, field.key) as string).toLocaleString('pt-BR')
-                          : '—'
-                      }}
-                    </p>
-
-                    <span
-                      v-else-if="field.type === 'badge'"
-                      class="inline-flex rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
-                    >
-                      {{ getFieldValue(execution, field.key) ?? '—' }}
-                    </span>
-
-                    <!-- Timeline (workflow steps) -->
-                    <div v-else-if="field.type === 'timeline'" class="relative py-2">
-                      <div v-if="timelineSteps.length" class="relative">
-                        <div class="absolute left-0 right-0 top-5 h-0.5 bg-border" />
-                        <div class="relative flex justify-between">
-                          <div
-                            v-for="(step, index) in timelineSteps"
-                            :key="step.id"
-                            class="flex flex-col items-center"
-                          >
-                            <div
-                              class="relative z-10 flex h-10 w-10 items-center justify-center rounded-full border-2 transition-all"
-                              :class="[
-                                step.id === currentStepId
-                                  ? 'border-primary bg-primary text-primary-foreground shadow-lg ring-4 ring-primary/20'
-                                  : 'border-muted-foreground/30 bg-card',
-                              ]"
-                            >
-                              <CheckCircle
-                                v-if="timelineSteps.findIndex((s: { id: string }) => s.id === currentStepId) > (index as number)"
-                                class="h-5 w-5 text-green-600 dark:text-green-400"
-                              />
-                              <span v-else class="text-xs font-bold">{{ index + 1 }}</span>
-                            </div>
-                            <div
-                              class="mt-2 max-w-[100px] text-center text-xs font-medium"
-                              :class="step.id === currentStepId ? 'text-primary' : 'text-muted-foreground'"
-                            >
-                              {{ step.name }}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <p v-else class="text-sm text-muted-foreground">Nenhuma etapa configurada.</p>
+              <div class="space-y-4">
+                <div v-for="(row, rowIndex) in getSectionRows(section)" :key="`${section.id}-${rowIndex}`" class="space-y-3">
+                  <template v-for="field in row.fields" :key="field.key">
+                    <!-- Custom field slot -->
+                    <div v-if="$slots[`field-${field.key}`]" class="space-y-1">
+                      <slot
+                        :name="`field-${field.key}`"
+                        :field="field"
+                        :value="getFieldValue(execution, field.key)"
+                        :execution="execution"
+                      />
                     </div>
 
-                    <!-- Select users (participants) -->
-                    <div v-else-if="field.type === 'selectUsers'" class="flex flex-wrap gap-2">
-                      <template v-for="user in (execution.users ?? execution.config?.users ?? [])" :key="(user as any).id">
-                        <span
-                          class="inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium"
-                          :class="
-                            (user as any).id === currentUserId
-                              ? 'border-green-600 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
-                              : 'border-border bg-muted/50 text-muted-foreground'
-                          "
-                        >
-                          {{ (user as any).name }}
-                          <span v-if="(user as any).id === currentUserId" class="ml-1">(você)</span>
-                        </span>
-                      </template>
-                      <span
-                        v-if="!(execution.users?.length ?? execution.config?.users?.length)"
-                        class="text-sm text-muted-foreground"
-                      >
-                        —
-                      </span>
-                    </div>
+                    <div v-else class="space-y-1">
+                      <label v-if="field.label && field.type !== 'link'" class="text-xs font-medium text-muted-foreground">
+                        {{ field.label }}
+                      </label>
 
-                    <p v-else class="text-sm text-muted-foreground">
-                      {{ String(getFieldValue(execution, field.key) ?? '—') }}
-                    </p>
-                  </div>
-                </template>
+                      <DisplayFieldRenderer
+                        :field="field"
+                        :execution="execution"
+                        :steps="timelineSteps"
+                        :current-user-id="currentUserId"
+                        mode="modal"
+                      />
+                    </div>
+                  </template>
+                </div>
               </div>
             </div>
           </template>
         </div>
       </ScrollArea>
 
+      <!-- Notes blocks (new API) -->
+      <div v-if="execution && noteBlocks.length" class="space-y-4 border-t pt-4">
+        <NoteBlockRenderer
+          v-for="note in noteBlocks"
+          :key="note.id"
+          :note="note"
+          :execution="execution"
+          @save="handleNoteSave"
+        />
+      </div>
+
       <!-- Notes actions (type = 'notes') — renderizadas acima do footer -->
-      <div v-if="execution && notesActions.length" class="space-y-4 border-t pt-4">
+      <div v-else-if="execution && notesActions.length" class="space-y-4 border-t pt-4">
         <FlowActionRenderer
           v-for="action in notesActions"
           :key="action.id"

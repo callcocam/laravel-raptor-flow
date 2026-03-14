@@ -1,5 +1,6 @@
 export * from './components/kanban'
 export * from './types/kanban'
+export * from './types/display'
 export * from './types/detailModal'
 
 // Plugin + Registry

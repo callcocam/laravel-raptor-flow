@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import FlowKanbanCard from './FlowKanbanCard.vue';
+import type { FlowKanbanCardConfig } from '../../types/display';
 import type { FlowKanbanExecution, FlowKanbanGroupConfig, FlowKanbanStep } from '../../types/kanban';
 import { computed, inject, ref, type Ref } from 'vue';
 
 interface Props {
   step: FlowKanbanStep;
   executions: FlowKanbanExecution[];
+  cardConfig?: FlowKanbanCardConfig | null;
   /** Configs de grupo para validação de drop (ex: planogramas, projetos). */
   groupConfigs?: FlowKanbanGroupConfig[] | null;
   userRoles?: string[];
@@ -124,6 +126,7 @@ const columnColor = computed(() => props.step.color ?? '#6b7280');
         :key="execution.id"
         :execution="execution"
         :step-id="step.id"
+        :card-config="cardConfig"
         :next-step-name="step.templateNextStep?.name"
         :previous-step-name="step.templatePreviousStep?.name"
         :user-roles="userRoles"

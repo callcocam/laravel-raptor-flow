@@ -4,6 +4,9 @@ namespace Callcocam\LaravelRaptorFlow\Services;
 
 use Callcocam\LaravelRaptorFlow\Models\Flow;
 use Callcocam\LaravelRaptorFlow\Support\Actions\FlowAction;
+use Callcocam\LaravelRaptorFlow\Support\Display\DisplayColumn;
+use Callcocam\LaravelRaptorFlow\Support\Display\DisplaySection;
+use Callcocam\LaravelRaptorFlow\Support\Display\NotesBlock;
 use Callcocam\LaravelRaptorFlow\Support\Kanban\KanbanBoard;
 use Callcocam\LaravelRaptorFlow\Support\Kanban\Columns\ExecutionColumn;
 use Closure;
@@ -47,6 +50,12 @@ class KanbanService
 
     /** @var array<array{id: string, label?: string, fields: array<array{key: string, type: string, label?: string}>}> */
     protected array $modalSections = [];
+
+    /** @var array<array{id: string, label?: string, style?: string, fields: array<mixed>}> */
+    protected array $cardColumns = [];
+
+    /** @var array<array{id: string, label: string, url: string, placeholder?: string}> */
+    protected array $notes = [];
 
     /** @var array<array{key: string, label: string, url: string, external?: bool}> */
     protected array $modalLinks = [];
@@ -144,6 +153,27 @@ class KanbanService
         return $this;
     }
 
+    public function addSection(DisplaySection $section): static
+    {
+        $this->modalSections[] = $section->toArray();
+
+        return $this;
+    }
+
+    public function addCardColumn(DisplayColumn $column): static
+    {
+        $this->cardColumns[] = $column->toArray();
+
+        return $this;
+    }
+
+    public function addNote(NotesBlock $block): static
+    {
+        $this->notes[] = $block->toArray();
+
+        return $this;
+    }
+
     /**
      * @param array{key: string, label: string, url: string, external?: bool} $link
      */
@@ -159,7 +189,7 @@ class KanbanService
     /**
      * Constrói e retorna os dados do board no shape canônico do KanbanBoard.
      *
-     * @return array{board: array{steps: array<mixed>, executions: array<string, array<mixed>>}, groupConfigs: array<mixed>, userRoles: array<mixed>, filters: array<mixed>}
+     * @return array{board: array{steps: array<mixed>, executions: array<string, array<mixed>>}, groupConfigs: array<mixed>, userRoles: array<mixed>, filters: array<mixed>, cardConfig: array{columns: array<mixed>}}
      */
     public function getBoardData(): array
     {
@@ -170,6 +200,7 @@ class KanbanService
             'groupConfigs' => $raw['groupConfigs'] ?? [],
             'userRoles' => $raw['userRoles'] ?? [],
             'filters' => $raw['filters'] ?? [],
+            'cardConfig' => $this->getCardConfig(),
         ];
     }
 
@@ -179,7 +210,7 @@ class KanbanService
      * As actions são serializadas sem contexto de execução — use placeholders
      * {param} nas URLs em vez de Closures.
      *
-     * @return array{sections: array<mixed>, actions: array<mixed>, links: array<mixed>}
+     * @return array{sections: array<mixed>, actions: array<mixed>, links: array<mixed>, notes: array<mixed>}
      */
     public function getDetailModalConfig(): array
     {
@@ -187,6 +218,17 @@ class KanbanService
             'sections' => $this->modalSections,
             'actions'  => array_map(fn(FlowAction $a) => $a->toArray(), $this->actions),
             'links'    => $this->modalLinks,
+            'notes'    => $this->notes,
+        ];
+    }
+
+    /**
+     * @return array{columns: array<mixed>}
+     */
+    public function getCardConfig(): array
+    {
+        return [
+            'columns' => $this->cardColumns,
         ];
     }
 
