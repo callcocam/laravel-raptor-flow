@@ -2,10 +2,19 @@
  * useFlowAction - Utilitarios compartilhados pelos componentes de acao do Flow.
  */
 
+import { router } from '@inertiajs/vue3'
 import * as LucideIcons from 'lucide-vue-next'
 import { computed } from 'vue'
 import type { FlowActionSchema } from '../types/detailModal'
 import type { FlowKanbanExecution } from '../types/kanban'
+
+interface ExecuteFlowActionOptions {
+  notes?: string
+  preserveState?: boolean
+  preserveScroll?: boolean
+  onSuccess?: () => void
+  onError?: () => void
+}
 
 /**
  * Resolve placeholders {param} ou {nested.field} em uma URL com os dados da execução.
@@ -25,6 +34,73 @@ export function resolveActionUrl(url: string, execution: FlowKanbanExecution): s
     }
     return String(value ?? '')
   })
+}
+
+/**
+ * Executa uma ação de flow no frontend (backend-driven) usando Inertia.
+ * Por padrão força refresh completo para evitar estado stale na modal/board.
+ */
+export function executeFlowAction(
+  action: FlowActionSchema,
+  execution: FlowKanbanExecution,
+  options: ExecuteFlowActionOptions = {},
+): boolean {
+  if (!action.url) {
+    return false
+  }
+
+  const resolvedUrl = resolveActionUrl(action.url, execution)
+  if (!resolvedUrl || resolvedUrl === '#') {
+    return false
+  }
+
+  const method = (action.method ?? 'post').toLowerCase()
+  const payload: Record<string, unknown> = {
+    ...(action.data ?? {}),
+  }
+
+  if (action.type === 'notes' && options.notes !== undefined) {
+    payload.notes = options.notes
+  }
+
+  const visitOptions = {
+    preserveState: options.preserveState ?? false,
+    preserveScroll: options.preserveScroll ?? false,
+    onSuccess: options.onSuccess,
+    onError: options.onError,
+  }
+
+  if (method === 'get') {
+    router.get(resolvedUrl, payload, visitOptions)
+    return true
+  }
+
+  if (method === 'post') {
+    router.post(resolvedUrl, payload, visitOptions)
+    return true
+  }
+
+  if (method === 'put') {
+    router.put(resolvedUrl, payload, visitOptions)
+    return true
+  }
+
+  if (method === 'patch') {
+    router.patch(resolvedUrl, payload, visitOptions)
+    return true
+  }
+
+  if (method === 'delete') {
+    router.delete(resolvedUrl, {
+      ...visitOptions,
+      data: payload,
+    })
+    return true
+  }
+
+  router.post(resolvedUrl, payload, visitOptions)
+
+  return true
 }
 
 /** Mapa de variante para classes Tailwind. */

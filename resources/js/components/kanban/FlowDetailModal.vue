@@ -6,10 +6,9 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { ScrollArea } from '@/components/ui/scroll-area'
 import FlowActionRenderer from '../actions/FlowActionRenderer.vue'
 import DisplayFieldRenderer from './DisplayFieldRenderer.vue'
-import { resolveActionUrl } from '../../composables/useFlowAction'
+import { executeFlowAction, resolveActionUrl } from '../../composables/useFlowAction'
 import { resolveFieldValue } from '../../composables/display'
 import NoteBlockRenderer from './NoteBlockRenderer.vue'
 import type { DetailModalConfig, DetailModalLinkConfig, FlowActionSchema } from '../../types/detailModal'
@@ -32,7 +31,7 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   close: []
-  action: [execution: FlowKanbanExecution, action: FlowActionSchema, resolvedUrl: string, notes?: string]
+  action: [execution: FlowKanbanExecution, action: FlowActionSchema, resolvedUrl: string, notes?: string, executed?: boolean]
 }>()
 
 const isOpen = computed(() => props.execution !== null && props.config !== null)
@@ -140,35 +139,49 @@ function handleClose() {
   emit('close')
 }
 
-function handleActionExecute(action: FlowActionSchema, notes?: string) {
-  if (!props.execution) return
-  const resolvedUrl = resolveActionUrl(action.url ?? '', props.execution)
-  emit('action', props.execution, action, resolvedUrl, notes)
+function handleActionExecuted(
+  execution: FlowKanbanExecution,
+  action: FlowActionSchema,
+  resolvedUrl: string,
+  notes?: string,
+  executed?: boolean,
+) {
+  emit('action', execution, action, resolvedUrl, notes, executed)
 }
 
 function handleNoteSave(note: { id: string; label: string; url: string; placeholder?: string }, text: string) {
   if (!props.execution) return
 
+  const noteAction: FlowActionSchema = {
+    id: note.id,
+    type: 'notes',
+    label: note.label,
+    method: 'post',
+    url: note.url,
+    placeholder: note.placeholder,
+  }
+
+  const resolvedUrl = resolveActionUrl(note.url, props.execution)
+  const executed = executeFlowAction(noteAction, props.execution, {
+    notes: text,
+    preserveState: false,
+    preserveScroll: false,
+  })
+
   emit(
     'action',
     props.execution,
-    {
-      id: note.id,
-      type: 'notes',
-      label: note.label,
-      method: 'post',
-      url: note.url,
-      placeholder: note.placeholder,
-    },
-    resolveActionUrl(note.url, props.execution),
+    noteAction,
+    resolvedUrl,
     text,
+    executed,
   )
 }
 </script>
 
 <template>
   <Dialog :open="isOpen" @update:open="handleClose">
-    <DialogContent class="max-h-[90vh] overflow-hidden sm:max-w-4xl">
+    <DialogContent class="flex max-h-[90vh] flex-col overflow-y-auto sm:max-w-4xl">
       <!-- Header -->
       <DialogHeader class="space-y-0 pb-2">
         <div class="flex items-start gap-4 pr-8">
@@ -228,8 +241,8 @@ function handleNoteSave(note: { id: string; label: string; url: string; placehol
       </DialogHeader>
 
       <!-- Sections + fields -->
-      <ScrollArea v-if="execution && config" class="max-h-[calc(90vh-220px)] pr-4">
-        <div class="grid grid-cols-12 gap-4">
+      <div v-if="execution && config" class="min-h-0 flex-1 pr-4">
+        <div class="grid grid-cols-12 gap-4 pb-4">
           <template v-for="section in config.sections" :key="section.id">
             <!-- Custom section slot -->
             <div v-if="$slots[`section-${section.id}`]" :class="sectionSpanClass(section)" class="space-y-2">
@@ -273,10 +286,10 @@ function handleNoteSave(note: { id: string; label: string; url: string; placehol
             </div>
           </template>
         </div>
-      </ScrollArea>
+      </div>
 
       <!-- Notes blocks (new API) -->
-      <div v-if="execution && noteBlocks.length" class="space-y-4 border-t pt-4">
+      <div v-if="execution && noteBlocks.length" class="shrink-0 space-y-4 border-t pt-4">
         <NoteBlockRenderer
           v-for="note in noteBlocks"
           :key="note.id"
@@ -287,24 +300,24 @@ function handleNoteSave(note: { id: string; label: string; url: string; placehol
       </div>
 
       <!-- Notes actions (type = 'notes') — renderizadas acima do footer -->
-      <div v-else-if="execution && notesActions.length" class="space-y-4 border-t pt-4">
+      <div v-else-if="execution && notesActions.length" class="shrink-0 space-y-4 border-t pt-4">
         <FlowActionRenderer
           v-for="action in notesActions"
           :key="action.id"
           :action="action"
           :execution="execution"
-          @execute="(notes) => handleActionExecute(action, notes)"
+          @executed="handleActionExecuted"
         />
       </div>
 
       <!-- Footer: ações de botão + fechar -->
-      <div class="flex flex-wrap items-center gap-2 border-t pt-4">
+      <div class="flex shrink-0 flex-wrap items-center gap-2 border-t pt-4">
         <FlowActionRenderer
           v-for="action in buttonActions"
           :key="action.id"
           :action="action"
           :execution="execution ?? ({} as FlowKanbanExecution)"
-          @execute="() => handleActionExecute(action)"
+          @executed="handleActionExecuted"
         />
 
         <div class="flex-1" />

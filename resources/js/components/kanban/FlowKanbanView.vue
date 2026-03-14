@@ -21,7 +21,7 @@ import type {
 import type { FlowKanbanCardConfig } from '../../types/display';
 import { computed, ref } from 'vue';
 
-const ROUTER_OPTIONS = { preserveState: true, preserveScroll: true };
+const ROUTER_OPTIONS = { preserveState: false, preserveScroll: false };
 
 interface Props {
   board: FlowKanbanBoardPayload;
@@ -52,7 +52,7 @@ const emit = defineEmits<{
   'filters-applied': [filters: Record<string, unknown>];
   'filters-cleared': [];
   closeDetail: [];
-  action: [execution: FlowKanbanExecution, action: FlowActionSchema, resolvedUrl: string, notes?: string];
+  action: [execution: FlowKanbanExecution, action: FlowActionSchema, resolvedUrl: string, notes?: string, executed?: boolean];
 }>();
 
 const selectedExecution = ref<FlowKanbanExecution | null>(null);
@@ -126,18 +126,24 @@ function handleClearFilters() {
 
 /**
  * Recebe o evento 'action' do FlowDetailModal.
- * Se a ação tem URL resolvido (backend-driven), executa via router.
- * Sempre emite o evento 'action' para que a página possa reagir também.
+ * A execução principal acontece no FlowActionRenderer (fluxo centralizado).
+ * Aqui mantemos apenas fallback legado e propagação de evento.
  */
 function handleModalAction(
   execution: FlowKanbanExecution,
   action: FlowActionSchema,
   resolvedUrl: string,
   notes?: string,
+  executed?: boolean,
 ) {
-  emit('action', execution, action, resolvedUrl, notes);
+  emit('action', execution, action, resolvedUrl, notes, executed);
 
-  // Executa via router se a ação tem URL válido
+  // Fluxo centralizado: FlowActionRenderer já executou a ação.
+  if (executed) {
+    return
+  }
+
+  // Fallback para fluxos legados (ex.: NoteBlockRenderer) que ainda só emitem evento.
   if (resolvedUrl && resolvedUrl !== '#') {
     const data: Record<string, unknown> = { ...(action.data ?? {}) };
     if (action.type === 'notes' && notes !== undefined) {

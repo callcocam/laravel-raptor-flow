@@ -15,6 +15,7 @@ import { computed } from 'vue'
 import FlowActionRegistry from '../../utils/FlowActionRegistry'
 import type { FlowActionSchema } from '../../types/detailModal'
 import type { FlowKanbanExecution } from '../../types/kanban'
+import { executeFlowAction, resolveActionUrl } from '../../composables/useFlowAction'
 
 const props = defineProps<{
   action: FlowActionSchema
@@ -22,7 +23,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  execute: [notes?: string]
+  executed: [execution: FlowKanbanExecution, action: FlowActionSchema, resolvedUrl: string, notes?: string, executed?: boolean]
 }>()
 
 const component = computed(() => {
@@ -50,6 +51,17 @@ const component = computed(() => {
 
   return registered
 })
+
+function handleExecute(notes?: string): void {
+  const resolvedUrl = resolveActionUrl(props.action.url ?? '', props.execution)
+  const didExecute = executeFlowAction(props.action, props.execution, {
+    notes,
+    preserveState: false,
+    preserveScroll: false,
+  })
+
+  emit('executed', props.execution, props.action, resolvedUrl, notes, didExecute)
+}
 </script>
 
 <template>
@@ -57,6 +69,6 @@ const component = computed(() => {
     :is="component"
     :action="action"
     :execution="execution"
-    @execute="(notes?: string) => emit('execute', notes)"
+    @execute="handleExecute"
   />
 </template>
