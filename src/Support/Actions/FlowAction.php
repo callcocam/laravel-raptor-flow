@@ -9,6 +9,8 @@
 namespace Callcocam\LaravelRaptorFlow\Support\Actions;
 
 use Closure;
+use Illuminate\Support\Facades\Route;
+use Throwable;
 
 /**
  * Ação genérica para o modal de detalhes do Kanban (laravel-raptor-flow).
@@ -30,6 +32,8 @@ abstract class FlowAction
 
     protected string $variant = 'outline';
 
+    protected ?string $component = 'flow-action-button';
+
     /** Status em que a ação é visível. null = sempre visível. */
     protected ?array $visibleStatuses = null;
 
@@ -38,6 +42,8 @@ abstract class FlowAction
     protected array $data = [];
 
     protected string $type = 'action';
+
+    protected string $executionPlaceholder = '{id}';
 
     public static function make(string $id): static
     {
@@ -93,6 +99,13 @@ abstract class FlowAction
         return $this;
     }
 
+    public function component(?string $component): static
+    {
+        $this->component = $component;
+
+        return $this;
+    }
+
     /**
      * Define em quais status da execução a ação é visível.
      * Ex: ['pending'], ['in_progress'], ['paused']
@@ -129,6 +142,20 @@ abstract class FlowAction
     }
 
     /**
+     * Define URL da ação baseada em rota nomeada com placeholder da execução.
+     */
+    protected function executionRoute(string $action): static
+    {
+        if(Route::has($action)) {
+            $this->url = route($action, ['execution' => $this->executionPlaceholder]);
+        } else {
+            throw new Throwable("Rota nomeada '$action' não encontrada. Verifique se a rota existe e se o nome está correto.");
+        }
+
+        return $this;
+    }
+
+    /**
      * Resolve o URL: se for Closure, chama passando o modelo; se for string, retorna direto.
      */
     protected function resolveUrl(mixed $target = null): string
@@ -158,6 +185,7 @@ abstract class FlowAction
             'visibleStatuses' => $this->visibleStatuses,
             'confirm' => $this->confirm,
             'data' => $this->data,
+            'component' => $this->component,
         ];
     }
 }

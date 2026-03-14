@@ -157,29 +157,19 @@ class KanbanService
     // ── Output ────────────────────────────────────────────────────────────────
 
     /**
-     * Constrói e retorna os dados do board no shape esperado pelo frontend.
+     * Constrói e retorna os dados do board no shape canônico do KanbanBoard.
      *
-     * Adapta a saída do KanbanBoard ({ steps, executions: { stepId: [...] } })
-     * para o formato FlowKanbanBoardTreeNode[] que o FlowKanbanView espera:
-     * array de steps com as executions de cada step já embutidas.
-     *
-     * @return array{board: array<mixed>, groupConfigs: array<mixed>, userRoles: array<mixed>, filters: array<mixed>}
+     * @return array{board: array{steps: array<mixed>, executions: array<string, array<mixed>>}, groupConfigs: array<mixed>, userRoles: array<mixed>, filters: array<mixed>}
      */
     public function getBoardData(): array
     {
         $raw = $this->buildBoard()->getBoardData();
 
-        $steps = $raw['board']['steps'] ?? [];
-        $executions = $raw['board']['executions'] ?? [];
-
         return [
-            'board' => array_map(fn ($step) => array_merge($step, [
-                'executions' => $executions[$step['id']] ?? [],
-                'configSteps' => [],
-            ]), $steps),
+            'board' => $raw['board'] ?? ['steps' => [], 'executions' => []],
             'groupConfigs' => $raw['groupConfigs'] ?? [],
-            'userRoles'    => $raw['userRoles'] ?? [],
-            'filters'      => $raw['filters'] ?? [],
+            'userRoles' => $raw['userRoles'] ?? [],
+            'filters' => $raw['filters'] ?? [],
         ];
     }
 

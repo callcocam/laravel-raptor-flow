@@ -17,7 +17,13 @@ class PauseAction extends FlowAction
         $this->icon = 'Pause';
         $this->method = 'post';
         $this->variant = 'outline';
+        $this->executionRoute('flow.execution.pause');
         $this->visibleStatuses = ['in_progress'];
+        $this->confirm = [
+            'title' => 'Pausar etapa?',
+            'description' => 'A etapa ficará pausada e você continuará responsável por ela. Você pode retomar a etapa depois.',
+        ];
+        $this->component('pause-action-button');
         $this->setUp();
     }
 

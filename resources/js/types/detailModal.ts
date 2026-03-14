@@ -61,6 +61,8 @@ export interface FlowActionSchema {
   visibleStatuses?: string[] | null;
   confirm?: { title: string; description?: string } | null;
   data?: Record<string, unknown>;
+  /** Nome de componente customizado registrado no FlowActionRegistry */
+  component?: string | null;
   /** Apenas para type 'notes' */
   placeholder?: string;
 }

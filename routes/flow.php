@@ -20,7 +20,7 @@ Route::bind('execution', function (string $value) {
     return FlowExecution::query()->findOrFail($value);
 });
 
-Route::prefix('executions/{execution}')->name('flow.execution.')->group(function () {
+Route::prefix('executions')->name('flow.execution.')->group(function () {
     Route::post('start', [FlowExecutionController::class, 'start'])->name('start');
     Route::post('move', [FlowExecutionController::class, 'move'])->name('move');
     Route::post('pause', [FlowExecutionController::class, 'pause'])->name('pause');

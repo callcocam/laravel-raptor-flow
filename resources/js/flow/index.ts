@@ -19,6 +19,18 @@ FlowActionRegistry.registerBulk({
   'flow-action-link': defineAsyncComponent(
     () => import('../components/actions/types/FlowActionLink.vue'),
   ),
+  'start-action-button': defineAsyncComponent(
+    () => import('../components/actions/types/StartActionButton.vue'),
+  ),
+  'pause-action-button': defineAsyncComponent(
+    () => import('../components/actions/types/PauseActionButton.vue'),
+  ),
+  'resume-action-button': defineAsyncComponent(
+    () => import('../components/actions/types/ResumeActionButton.vue'),
+  ),
+  'abandon-action-button': defineAsyncComponent(
+    () => import('../components/actions/types/AbandonActionButton.vue'),
+  ),
 })
 
 FlowActionRegistry.markAsInitialized()

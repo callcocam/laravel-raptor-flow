@@ -4,10 +4,12 @@ namespace Callcocam\LaravelRaptorFlow\Services;
 
 use Callcocam\LaravelRaptorFlow\Contracts\Workable;
 use Callcocam\LaravelRaptorFlow\Enums\FlowAction;
+use Callcocam\LaravelRaptorFlow\Enums\FlowParticipantRole;
 use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
 use Callcocam\LaravelRaptorFlow\Models\FlowConfigStep;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Callcocam\LaravelRaptorFlow\Models\FlowHistory;
+use Callcocam\LaravelRaptorFlow\Models\FlowParticipant;
 use Callcocam\LaravelRaptorFlow\Models\FlowPreset;
 use Callcocam\LaravelRaptorFlow\Models\FlowStepTemplate;
 use Illuminate\Support\Collection;
@@ -57,7 +59,7 @@ class FlowManager
     /**
      * Cria etapas (FlowConfigStep) para o configurável a partir do array de steps.
      *
-     * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null}>  $steps
+    * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null, users?: array<int, string>}>  $steps
      * @return Collection<int, FlowConfigStep>
      */
     public function createStepsFor(Workable $configurable, array $steps, ?string $name = null, ?string $description = null): Collection
@@ -70,20 +72,33 @@ class FlowManager
     /**
      * Sincroniza as etapas do configurável com o array enviado (create/update/remove).
      *
-     * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null}>  $steps
+     * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null, users?: array<int, string>}>  $steps
      */
     public function syncStepsFor(Workable $configurable, array $steps): void
     {
         $incomingTemplateIds = collect($steps)->pluck('flow_step_template_id')->filter()->values()->toArray();
+
+        $stepsToDelete = FlowConfigStep::where('configurable_type', get_class($configurable))
+            ->where('configurable_id', $configurable->getWorkflowKey())
+            ->whereNotIn('flow_step_template_id', $incomingTemplateIds)
+            ->get(['id']);
+
+        if ($stepsToDelete->isNotEmpty()) {
+            FlowParticipant::where('participable_type', FlowConfigStep::class)
+                ->whereIn('participable_id', $stepsToDelete->pluck('id')->all())
+                ->delete();
+        }
+
         FlowConfigStep::where('configurable_type', get_class($configurable))
             ->where('configurable_id', $configurable->getWorkflowKey())
             ->whereNotIn('flow_step_template_id', $incomingTemplateIds)
             ->delete();
+
         $this->upsertStepsFor($configurable, $steps);
     }
 
     /**
-     * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null}>  $steps
+     * @param  array<int, array{flow_step_template_id: string, order?: int, default_role_id?: string|null, estimated_duration_days?: int|null, suggested_responsible_id?: string|null, users?: array<int, string>}>  $steps
      */
     protected function upsertStepsFor(Workable $configurable, array $steps): void
     {
@@ -97,7 +112,7 @@ class FlowManager
             if (! $template) {
                 continue;
             }
-            FlowConfigStep::updateOrCreate(
+            $configStep = FlowConfigStep::updateOrCreate(
                 [
                     'configurable_type' => get_class($configurable),
                     'configurable_id' => $configurable->getWorkflowKey(),
@@ -114,6 +129,50 @@ class FlowManager
                     'is_active' => true,
                 ]
             );
+
+            $this->syncParticipantsForStep($configStep, $stepData['users'] ?? []);
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $userIds
+     */
+    protected function syncParticipantsForStep(FlowConfigStep $configStep, array $userIds): void
+    {
+        $normalizedUserIds = collect($userIds)
+            ->filter(fn ($id) => $id !== null && $id !== '')
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        $participantsQuery = FlowParticipant::query()
+            ->where('participable_type', FlowConfigStep::class)
+            ->where('participable_id', $configStep->id);
+
+        if ($normalizedUserIds === []) {
+            $participantsQuery->delete();
+
+            return;
+        }
+
+        $participantsQuery
+            ->whereNotIn('user_id', $normalizedUserIds)
+            ->delete();
+
+        foreach ($normalizedUserIds as $userId) {
+            FlowParticipant::updateOrCreate(
+                [
+                    'user_id' => $userId,
+                    'participable_type' => FlowConfigStep::class,
+                    'participable_id' => $configStep->id,
+                ],
+                [
+                    'role_in_step' => FlowParticipantRole::Assignee,
+                    'is_pre_assigned' => true,
+                    'assigned_at' => now(),
+                ]
+            );
         }
     }
 
@@ -126,7 +185,7 @@ class FlowManager
     {
         return FlowConfigStep::where('configurable_type', get_class($configurable))
             ->where('configurable_id', $configurable->getWorkflowKey())
-            ->with('stepTemplate')
+            ->with(['stepTemplate', 'participants'])
             ->orderBy('order')
             ->get();
     }

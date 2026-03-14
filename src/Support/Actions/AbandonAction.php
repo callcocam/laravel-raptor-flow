@@ -17,11 +17,13 @@ class AbandonAction extends FlowAction
         $this->icon = 'LogOut';
         $this->method = 'post';
         $this->variant = 'destructive';
+        $this->executionRoute('flow.execution.abandon');
         $this->visibleStatuses = ['in_progress'];
         $this->confirm = [
             'title' => 'Abandonar etapa?',
             'description' => 'Você vai liberar a responsabilidade desta etapa. Outro usuário poderá assumir.',
         ];
+        $this->component('abandon-action-button');
         $this->setUp();
     }
 

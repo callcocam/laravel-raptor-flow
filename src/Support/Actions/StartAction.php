@@ -17,7 +17,13 @@ class StartAction extends FlowAction
         $this->icon = 'Play';
         $this->method = 'post';
         $this->variant = 'default';
+        $this->executionRoute('flow.execution.start');
         $this->visibleStatuses = ['pending'];
+        $this->confirm = [
+            'title' => 'Iniciar etapa?',
+            'description' => 'A etapa será iniciada e ficará ativa.',
+        ];
+        $this->component('start-action-button');
         $this->setUp();
     }
 

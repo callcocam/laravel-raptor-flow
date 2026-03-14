@@ -27,7 +27,7 @@ const emit = defineEmits<{
 
 const component = computed(() => {
   // 1. Override explícito por nome de componente
-  const override = (props.action as FlowActionSchema & { component?: string }).component
+  const override = props.action.component
   if (override) {
     const c = FlowActionRegistry.get(override)
     if (c) return c

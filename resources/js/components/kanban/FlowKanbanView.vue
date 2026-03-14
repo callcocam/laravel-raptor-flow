@@ -11,7 +11,8 @@ import type {
 } from '../../types/detailModal';
 import type {
   FlowKanbanBoardData,
-  FlowKanbanBoardTreeNode,
+  FlowKanbanBoardPayload,
+  FlowKanbanBoardRawData,
   FlowKanbanExecution,
   FlowKanbanFilterConfig,
   FlowKanbanGroupConfig,
@@ -22,7 +23,7 @@ import { computed, ref } from 'vue';
 const ROUTER_OPTIONS = { preserveState: true, preserveScroll: true };
 
 interface Props {
-  board: FlowKanbanBoardData;
+  board: FlowKanbanBoardPayload;
   /** Configs de grupo para validar drops entre colunas (ex: planogramas, projetos). */
   groupConfigs?: FlowKanbanGroupConfig[] | null;
   filters?: { data: FlowKanbanFilterConfig[] | null };
@@ -60,71 +61,17 @@ const emit = defineEmits<{
 const selectedExecution = ref<FlowKanbanExecution | null>(null);
 const filterConfigs = computed(() => props.filters?.data ?? []);
 const normalizedSteps = computed<FlowKanbanStep[]>(() =>
-  props.board.map((template, index, arr) => ({
-    id: template.id,
-    name: template.name,
-    description: template.description ?? null,
-    slug: template.slug,
-    color: template.color ?? null,
-    suggested_order: template.suggested_order,
-    templateNextStep: arr[index + 1]
-      ? { id: arr[index + 1].id, name: arr[index + 1].name }
-      : undefined,
-    templatePreviousStep: index > 0
-      ? { id: arr[index - 1].id, name: arr[index - 1].name }
-      : undefined,
-  }))
+  isRawBoardData(props.board) ? props.board.steps : (props.board as unknown as FlowKanbanStep[])
 );
 
 const normalizedExecutions = computed<Record<string, FlowKanbanExecution[]>>(() =>
-  Object.fromEntries(
-    props.board.map((template) => [
-      template.id,
-      normalizeTemplateExecutions(template),
-    ])
-  )
+  isRawBoardData(props.board)
+    ? props.board.executions
+    : Object.fromEntries((props.board as FlowKanbanBoardData).map((template) => [template.id, template.executions]))
 );
 
-function normalizeTemplateExecutions(template: FlowKanbanBoardTreeNode): FlowKanbanExecution[] {
-  if (Array.isArray(template.executions) && template.executions.length > 0) {
-    return template.executions.map((execution) => normalizeExecution({ execution }, template));
-  }
-
-  return template.configSteps.flatMap((configStep) =>
-    configStep.configs.flatMap((config) => {
-      if (!config.execution) {
-        return [];
-      }
-
-      return [normalizeExecution(config, template, configStep.id, configStep.configurable_id)];
-    })
-  );
-}
-
-function normalizeExecution(
-  config: { id?: string; name?: string | null; execution: FlowKanbanExecution | null },
-  template: FlowKanbanBoardTreeNode,
-  flowConfigStepId?: string,
-  groupId?: string,
-): FlowKanbanExecution {
-  const execution = config.execution as FlowKanbanExecution;
-  const workable = (execution.workable ?? {}) as {
-    id?: string;
-    name?: string;
-    group_id?: string | null;
-  };
-
-  return {
-    ...execution,
-    workflow_step_template_id: execution.workflow_step_template_id ?? template.id,
-    flow_config_step_id: execution.flow_config_step_id ?? flowConfigStepId,
-    workable: {
-      ...workable,
-      id: workable.id ?? config.id ?? execution.id,
-      name: workable.name ?? config.name ?? '—',
-      group_id: workable.group_id ?? groupId ?? null,
-    },
-  };
+function isRawBoardData(board: FlowKanbanBoardPayload): board is FlowKanbanBoardRawData {
+  return !Array.isArray(board);
 }
 
 function runRequest(req: FlowKanbanActionRequest) {
@@ -147,6 +94,13 @@ function handleMove(workableId: string, fromStepId: string, toStepId: string) {
     runRequest({ ...req, data: req.data ?? { to_step_id: toStepId } });
     return;
   }
+
+  runRequest({
+    url: `/flow/executions/${workableId}/move`,
+    method: 'post',
+    data: { to_step_id: toStepId },
+  });
+
   emit('move', workableId, fromStepId, toStepId);
 }
 

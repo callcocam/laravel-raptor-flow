@@ -74,11 +74,21 @@ export interface FlowKanbanBoardTreeNode {
   description?: string | null;
   slug?: string;
   color?: string | null;
-  executions?: FlowKanbanExecution[];
+  templateNextStep?: { id: string; name: string } | null;
+  templatePreviousStep?: { id: string; name: string } | null;
+  executions: FlowKanbanExecution[];
+  /** @deprecated Always empty in the new flat-executions format. */
   configSteps: FlowKanbanBoardTreeConfigStep[];
 }
 
 export type FlowKanbanBoardData = FlowKanbanBoardTreeNode[];
+
+export interface FlowKanbanBoardRawData {
+  steps: FlowKanbanStep[];
+  executions: Record<string, FlowKanbanExecution[]>;
+}
+
+export type FlowKanbanBoardPayload = FlowKanbanBoardData | FlowKanbanBoardRawData;
 
 /**
  * Configuração de grupo usada para validar quais colunas (steps) aceitam o drop

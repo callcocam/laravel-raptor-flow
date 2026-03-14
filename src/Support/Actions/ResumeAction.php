@@ -17,7 +17,13 @@ class ResumeAction extends FlowAction
         $this->icon = 'Play';
         $this->method = 'post';
         $this->variant = 'outline';
+        $this->executionRoute('flow.execution.resume');
         $this->visibleStatuses = ['paused'];
+        $this->confirm = [
+            'title' => 'Retomar etapa?',
+            'description' => 'A etapa será retomada e ficará ativa novamente.',
+        ];
+        $this->component('resume-action-button');
         $this->setUp();
     }
 
