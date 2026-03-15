@@ -16,7 +16,7 @@ use Callcocam\LaravelRaptorFlow\Support\Concerns\HasUrl;
 use Callcocam\LaravelRaptorFlow\Support\Concerns\HasVariant;
 use Closure;
 use Illuminate\Support\Facades\Route;
-use Throwable;
+use RuntimeException;
 
 /**
  * Ação genérica para o modal de detalhes do Kanban (laravel-raptor-flow).
@@ -50,6 +50,8 @@ abstract class FlowAction
     protected ?array $confirm = null;
 
     protected array $data = [];
+
+    protected bool|Closure $visible = true;
 
     protected string $type = 'action';
 
@@ -100,6 +102,18 @@ abstract class FlowAction
         return $this;
     }
 
+    public function visible(bool|Closure $condition = true): static
+    {
+        $this->visible = $condition;
+
+        return $this;
+    }
+
+    public function isVisible(mixed $target = null): bool
+    {
+        return (bool) $this->evaluateConfiguredValue($this->visible, $target);
+    }
+
     public function defaultComponent(): static
     {
         return $this->component(ActionComponents::forActionId($this->id));
@@ -130,11 +144,24 @@ abstract class FlowAction
      */
     protected function executionRoute(string $action): static
     {
-        if(Route::has($action)) {
-            $this->url = route($action, ['execution' => $this->executionPlaceholder]);
-        } else {
-            throw new Throwable("Rota nomeada '$action' não encontrada. Verifique se a rota existe e se o nome está correto.");
+        if (! Route::has($action)) {
+            throw new RuntimeException("Rota nomeada '$action' não encontrada. Verifique se a rota existe e se o nome está correto.");
         }
+
+        $route = Route::getRoutes()->getByName($action);
+        $parameterNames = $route?->parameterNames() ?? ['execution'];
+
+        $parameters = [];
+        $markers = [];
+
+        foreach ($parameterNames as $parameterName) {
+            $marker = "__FLOW_ACTION_{$parameterName}__";
+            $parameters[$parameterName] = $marker;
+            $markers[$marker] = $this->executionPlaceholder;
+        }
+
+        $generated = route($action, $parameters);
+        $this->url = strtr($generated, $markers);
 
         return $this;
     }

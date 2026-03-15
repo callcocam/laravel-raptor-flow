@@ -57,7 +57,7 @@ function handleExecute(notes?: string): void {
   const didExecute = executeFlowAction(props.action, props.execution, {
     notes,
     preserveState: false,
-    preserveScroll: false,
+    preserveScroll: true,
   })
 
   emit('executed', props.execution, props.action, resolvedUrl, notes, didExecute)

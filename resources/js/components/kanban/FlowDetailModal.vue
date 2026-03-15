@@ -85,11 +85,11 @@ function isActionVisible(action: FlowActionSchema): boolean {
 }
 
 const notesActions = computed(() =>
-  (props.config?.actions ?? []).filter((a) => a.type === 'notes' && isActionVisible(a))
+  ((props.execution?.modal_actions ?? props.config?.actions) ?? []).filter((a) => a.type === 'notes' && isActionVisible(a))
 )
 
 const buttonActions = computed(() =>
-  (props.config?.actions ?? []).filter((a) => a.type !== 'notes' && isActionVisible(a))
+  ((props.execution?.modal_actions ?? props.config?.actions) ?? []).filter((a) => a.type !== 'notes' && isActionVisible(a))
 )
 
 // --- Field helpers ---
@@ -181,9 +181,9 @@ function handleNoteSave(note: { id: string; label: string; url: string; placehol
 
 <template>
   <Dialog :open="isOpen" @update:open="handleClose">
-    <DialogContent class="flex max-h-[90vh] flex-col overflow-y-auto sm:max-w-4xl">
+    <DialogContent class="flex max-h-[90vh] flex-col overflow-hidden sm:max-w-4xl">
       <!-- Header -->
-      <DialogHeader class="space-y-0 pb-2">
+      <DialogHeader class="shrink-0 space-y-0 pb-2">
         <div class="flex items-start gap-4 pr-8">
           <div class="min-w-0 flex-1">
             <DialogTitle class="text-2xl font-bold">
@@ -240,74 +240,76 @@ function handleNoteSave(note: { id: string; label: string; url: string; placehol
         </div>
       </DialogHeader>
 
-      <!-- Sections + fields -->
-      <div v-if="execution && config" class="min-h-0 flex-1 pr-4">
-        <div class="grid grid-cols-12 gap-4 pb-4">
-          <template v-for="section in config.sections" :key="section.id">
-            <!-- Custom section slot -->
-            <div v-if="$slots[`section-${section.id}`]" :class="sectionSpanClass(section)" class="space-y-2">
-              <slot :name="`section-${section.id}`" :section="section" :execution="execution" />
-            </div>
+      <!-- Scroll area: sections + notes -->
+      <div v-if="execution && config" class="min-h-0 flex-1 overflow-y-auto pr-4">
+        <div class="space-y-4 pb-4">
+          <div class="grid grid-cols-12 gap-4">
+            <template v-for="section in config.sections" :key="section.id">
+              <!-- Custom section slot -->
+              <div v-if="$slots[`section-${section.id}`]" :class="sectionSpanClass(section)" class="space-y-2">
+                <slot :name="`section-${section.id}`" :section="section" :execution="execution" />
+              </div>
 
-            <div v-else :class="sectionSpanClass(section)" class="space-y-3 rounded-lg border bg-card p-4">
-              <h3 v-if="section.label" class="text-sm font-semibold text-foreground">
-                {{ section.label }}
-              </h3>
+              <div v-else :class="sectionSpanClass(section)" class="space-y-3 rounded-lg border bg-card p-4">
+                <h3 v-if="section.label" class="text-sm font-semibold text-foreground">
+                  {{ section.label }}
+                </h3>
 
-              <div class="space-y-4">
-                <div v-for="(row, rowIndex) in getSectionRows(section)" :key="`${section.id}-${rowIndex}`" class="space-y-3">
-                  <template v-for="field in row.fields" :key="field.key">
-                    <!-- Custom field slot -->
-                    <div v-if="$slots[`field-${field.key}`]" class="space-y-1">
-                      <slot
-                        :name="`field-${field.key}`"
-                        :field="field"
-                        :value="getFieldValue(execution, field.key)"
-                        :execution="execution"
-                      />
-                    </div>
+                <div class="space-y-4">
+                  <div v-for="(row, rowIndex) in getSectionRows(section)" :key="`${section.id}-${rowIndex}`" class="space-y-3">
+                    <template v-for="field in row.fields" :key="field.key">
+                      <!-- Custom field slot -->
+                      <div v-if="$slots[`field-${field.key}`]" class="space-y-1">
+                        <slot
+                          :name="`field-${field.key}`"
+                          :field="field"
+                          :value="getFieldValue(execution, field.key)"
+                          :execution="execution"
+                        />
+                      </div>
 
-                    <div v-else class="space-y-1">
-                      <label v-if="field.label && field.type !== 'link' && !field.component" class="text-xs font-medium text-muted-foreground">
-                        {{ field.label }}
-                      </label>
+                      <div v-else class="space-y-1">
+                        <label v-if="field.label && field.type !== 'link' && !field.component" class="text-xs font-medium text-muted-foreground">
+                          {{ field.label }}
+                        </label>
 
-                      <DisplayFieldRenderer
-                        :field="field"
-                        :execution="execution"
-                        :steps="timelineSteps"
-                        :current-user-id="currentUserId"
-                        mode="modal"
-                      />
-                    </div>
-                  </template>
+                        <DisplayFieldRenderer
+                          :field="field"
+                          :execution="execution"
+                          :steps="timelineSteps"
+                          :current-user-id="currentUserId"
+                          mode="modal"
+                        />
+                      </div>
+                    </template>
+                  </div>
                 </div>
               </div>
-            </div>
-          </template>
+            </template>
+          </div>
+
+          <!-- Notes blocks (new API) -->
+          <div v-if="noteBlocks.length" class="space-y-4 border-t pt-4">
+            <NoteBlockRenderer
+              v-for="note in noteBlocks"
+              :key="note.id"
+              :note="note"
+              :execution="execution"
+              @save="handleNoteSave"
+            />
+          </div>
+
+          <!-- Notes actions (type = 'notes') -->
+          <div v-else-if="notesActions.length" class="space-y-4 border-t pt-4">
+            <FlowActionRenderer
+              v-for="action in notesActions"
+              :key="action.id"
+              :action="action"
+              :execution="execution"
+              @executed="handleActionExecuted"
+            />
+          </div>
         </div>
-      </div>
-
-      <!-- Notes blocks (new API) -->
-      <div v-if="execution && noteBlocks.length" class="shrink-0 space-y-4 border-t pt-4">
-        <NoteBlockRenderer
-          v-for="note in noteBlocks"
-          :key="note.id"
-          :note="note"
-          :execution="execution"
-          @save="handleNoteSave"
-        />
-      </div>
-
-      <!-- Notes actions (type = 'notes') — renderizadas acima do footer -->
-      <div v-else-if="execution && notesActions.length" class="shrink-0 space-y-4 border-t pt-4">
-        <FlowActionRenderer
-          v-for="action in notesActions"
-          :key="action.id"
-          :action="action"
-          :execution="execution"
-          @executed="handleActionExecuted"
-        />
       </div>
 
       <!-- Footer: ações de botão + fechar -->

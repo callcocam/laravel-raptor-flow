@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { badgeClass } from '../../composables/display';
-import type { FlowKanbanCardConfig } from '../../types/display';
+import type { FlowKanbanCardConfig, FlowKanbanCardLinkConfig } from '../../types/display';
+import type { FlowActionSchema } from '../../types/detailModal';
 import type { FlowKanbanExecution } from '../../types/kanban';
+import FlowActionRenderer from '../actions/FlowActionRenderer.vue';
 import DisplayFieldRenderer from './DisplayFieldRenderer.vue';
 import { computed, inject, ref, type Ref } from 'vue';
 
@@ -9,8 +10,6 @@ interface Props {
   execution: FlowKanbanExecution;
   stepId: string;
   cardConfig?: FlowKanbanCardConfig | null;
-  nextStepName?: string | null;
-  previousStepName?: string | null;
   userRoles?: string[];
   requiredRole?: string | null;
   currentUserId?: string | null;
@@ -30,13 +29,23 @@ const currentDragData = inject<Ref<{ groupId: string; fromStepId: string } | nul
   ref(null)
 );
 
-const workable = computed(() => props.execution.workable);
-const workableLabel = computed(() => workable.value?.name ?? '—');
-const workableSubLabel = computed(() => workable.value?.group_label ?? null);
-
 const canDrag = computed(() => {
-  if (props.execution.permissions) return props.execution.permissions.can_move;
-  return true;
+  const canMoveFromVisibility = props.execution.action_visibility?.move;
+  if (typeof canMoveFromVisibility === 'boolean') {
+    return canMoveFromVisibility;
+  }
+
+  const canMoveFromAbilities = props.execution.abilities?.can_move;
+  if (typeof canMoveFromAbilities === 'boolean') {
+    return canMoveFromAbilities;
+  }
+
+  const canMoveFromPermissions = props.execution.permissions?.can_move;
+  if (typeof canMoveFromPermissions === 'boolean') {
+    return canMoveFromPermissions;
+  }
+
+  return false;
 });
 
 const configuredColumns = computed(() => {
@@ -47,51 +56,84 @@ const configuredColumns = computed(() => {
     }))
     .filter((column) => column.fields.length > 0)
 });
-const hasConfiguredColumns = computed(() => configuredColumns.value.length > 0);
+const cardActions = computed(() => props.execution.card_actions ?? []);
+const cardLinks = computed(() => {
+  const links = props.execution.card_links ?? props.cardConfig?.links ?? [];
 
-const statusColor = computed(() => {
-  return badgeClass(props.execution.status);
+  return [...links].sort((left, right) => {
+    const priorityLeft = Number(left.priority ?? 0);
+    const priorityRight = Number(right.priority ?? 0);
+
+    if (priorityLeft !== priorityRight) {
+      return priorityLeft - priorityRight;
+    }
+
+    return (left.key ?? '').localeCompare(right.key ?? '');
+  });
 });
+const primaryCardLinks = computed(() => cardLinks.value.filter((link) => (link.position ?? 'secondary') === 'primary'));
+const secondaryCardLinks = computed(() => cardLinks.value.filter((link) => (link.position ?? 'secondary') !== 'primary'));
 
-const statusLabel = computed(() => {
-  const labels: Record<string, string> = {
-    pending: 'Pendente',
-    in_progress: 'Em andamento',
-    completed: 'Concluída',
-    blocked: 'Bloqueada',
-    skipped: 'Pulada',
+function toLinkAction(link: FlowKanbanCardLinkConfig, group: 'primary' | 'secondary'): FlowActionSchema {
+  return {
+    id: `card-link-${group}-${link.key}`,
+    type: 'link',
+    label: link.label,
+    url: link.url,
+    method: 'get',
+    variant: group === 'primary' ? 'outline' : 'ghost',
+    component: 'flow-action-link',
+    data: {
+      external: Boolean(link.external),
+    },
   };
-  return labels[props.execution.status] ?? props.execution.status;
-});
+}
 
-const slaFormatted = computed(() => {
-  const d = props.execution.sla_date;
-  if (!d) return null;
-  return new Date(d).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
-});
+const primaryRenderedActions = computed<FlowActionSchema[]>(() => [
+  ...primaryCardLinks.value.map((link) => toLinkAction(link, 'primary')),
+  ...cardActions.value,
+]);
+
+const secondaryRenderedActions = computed<FlowActionSchema[]>(() =>
+  secondaryCardLinks.value.map((link) => toLinkAction(link, 'secondary')),
+);
+
+const shouldRenderLegacySlot = computed(() =>
+  primaryRenderedActions.value.length === 0 && secondaryRenderedActions.value.length === 0,
+);
+
+function handleClick() {
+  emit('click', props.execution);
+}
 
 function handleDragStart(event: DragEvent) {
-  if (!event.dataTransfer) return;
+  if (!canDrag.value || !event.dataTransfer) return;
+
   const groupId = String(props.execution.workable?.group_id ?? '');
   event.dataTransfer.effectAllowed = 'move';
   event.dataTransfer.setData(
     'application/json',
     JSON.stringify({
-      workableId: (workable.value as any)?.id ?? props.execution.id,
+      workableId: (props.execution.workable as any)?.id ?? props.execution.id,
       fromStepId: props.stepId,
       executionId: props.execution.id,
       groupId,
     })
   );
-  if (currentDragData) currentDragData.value = { groupId, fromStepId: props.stepId };
+
+  if (currentDragData) {
+    currentDragData.value = { groupId, fromStepId: props.stepId };
+  }
 }
 
 function handleDragEnd() {
-  if (currentDragData) currentDragData.value = null;
+  if (currentDragData) {
+    currentDragData.value = null;
+  }
 }
 
-function handleClick() {
-  emit('click', props.execution);
+function handleActionExecuted() {
+  // no-op: FlowActionRenderer executa a ação internamente.
 }
 
 </script>
@@ -107,81 +149,26 @@ function handleClick() {
     @dragstart="handleDragStart"
     @dragend="handleDragEnd"
   >
-    <template v-if="hasConfiguredColumns">
-      <div class="space-y-3">
-        <div v-for="column in configuredColumns" :key="column.id" class="space-y-2">
-          <p v-if="column.label" class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            {{ column.label }}
-          </p>
+    <div class="space-y-3">
+      <div v-for="column in configuredColumns" :key="column.id" class="space-y-2">
+        <p v-if="column.label" class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+          {{ column.label }}
+        </p>
 
-          <div class="space-y-2">
-            <template v-for="field in column.fields" :key="`${column.id}-${field.key}`">
-              <p v-if="field.label && field.type !== 'link' && !field.component" class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                {{ field.label }}
-              </p>
+        <div class="space-y-2">
+          <template v-for="field in column.fields" :key="`${column.id}-${field.key}`">
+            <p v-if="field.label && field.type !== 'link' && !field.component" class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              {{ field.label }}
+            </p>
 
-              <DisplayFieldRenderer
-                :field="field"
-                :execution="execution"
-                mode="card"
-              />
-            </template>
-          </div>
+            <DisplayFieldRenderer
+              :field="field"
+              :execution="execution"
+              mode="card"
+            />
+          </template>
         </div>
       </div>
-    </template>
-
-    <template v-else>
-    <div class="mb-2 flex items-start justify-between gap-2">
-      <div class="min-w-0 flex-1">
-        <h4 class="font-medium break-words text-card-foreground">
-          {{ workableLabel }}
-        </h4>
-        <span
-          v-if="workableSubLabel"
-          class="mt-1 block w-full text-xs break-words text-muted-foreground"
-        >
-          {{ workableSubLabel }}
-        </span>
-      </div>
-      <span
-        class="shrink-0 rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
-        :class="statusColor"
-      >
-        {{ statusLabel }}
-      </span>
-    </div>
-
-    <div
-      v-if="execution.is_overdue"
-      class="mb-2 flex items-center gap-1 text-xs text-destructive"
-    >
-      <span class="font-medium">Atrasada</span>
-    </div>
-
-    <div
-      v-if="slaFormatted"
-      class="mb-2 text-xs text-muted-foreground"
-    >
-      SLA: {{ slaFormatted }}
-    </div>
-
-    <div
-      v-if="execution.currentResponsible && execution.status === 'in_progress'"
-      class="mb-2 flex items-center gap-2 rounded bg-blue-50 px-2 py-1 dark:bg-blue-950/30"
-    >
-      <span class="truncate text-xs font-medium text-blue-700 dark:text-blue-300">
-        {{ execution.currentResponsible.name }}
-      </span>
-      <span class="shrink-0 text-[10px] text-blue-600 dark:text-blue-400">Responsável</span>
-    </div>
-
-    <div
-      v-if="previousStepName || nextStepName"
-      class="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs"
-    >
-      <span v-if="previousStepName" class="text-muted-foreground">← {{ previousStepName }}</span>
-      <span v-if="nextStepName" class="text-muted-foreground">{{ nextStepName }} →</span>
     </div>
 
     <div class="mt-3 flex flex-wrap items-center gap-2 border-t pt-2">
@@ -192,19 +179,26 @@ function handleClick() {
       >
         Detalhes
       </button>
-      <slot name="actions" :execution="execution" />
-    </div>
-    </template>
 
-    <div v-if="hasConfiguredColumns" class="mt-3 flex flex-wrap items-center gap-2 border-t pt-2">
-      <button
-        type="button"
-        class="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-3 text-sm hover:bg-accent"
-        @click.stop="handleClick"
-      >
-        Detalhes
-      </button>
-      <slot name="actions" :execution="execution" />
+      <FlowActionRenderer
+        v-for="action in primaryRenderedActions"
+        :key="action.id"
+        :action="action"
+        :execution="execution"
+        @executed="handleActionExecuted"
+      />
+
+      <slot v-if="shouldRenderLegacySlot" name="actions" :execution="execution" />
+    </div>
+
+    <div v-if="secondaryRenderedActions.length" class="mt-2 flex flex-wrap items-center gap-2">
+      <FlowActionRenderer
+        v-for="action in secondaryRenderedActions"
+        :key="action.id"
+        :action="action"
+        :execution="execution"
+        @executed="handleActionExecuted"
+      />
     </div>
   </div>
 </template>

@@ -409,6 +409,8 @@ class FlowManager
             ]);
         }
 
+        $this->ensureUserMatchesStepDefaultRole($execution, $startedByUserId);
+
         $estimatedDays = (int) ($execution->estimated_duration_days ?? 2);
         $slaDate = $estimatedDays > 0 ? now()->addDays($estimatedDays) : null;
 
@@ -495,6 +497,8 @@ class FlowManager
             ]);
         }
 
+        $this->ensureUserMatchesStepDefaultRole($execution, $assignedToUserId);
+
         $previousResponsibleId = $execution->current_responsible_id;
 
         $execution->update([
@@ -558,5 +562,35 @@ class FlowManager
         $execution->update(['notes' => $notes]);
 
         return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
+    protected function ensureUserMatchesStepDefaultRole(FlowExecution $execution, string|int $userId): void
+    {
+        $execution->loadMissing('configStep');
+
+        $requiredRoleId = $execution->configStep?->default_role_id;
+        if (! $requiredRoleId) {
+            return;
+        }
+
+        $checkRole = config('flow.policy.check_role');
+        if (! is_callable($checkRole)) {
+            return;
+        }
+
+        $userModel = config('auth.providers.users.model');
+        if (! is_string($userModel) || ! class_exists($userModel)) {
+            throw ValidationException::withMessages([
+                'user_id' => 'Não foi possível validar a role do responsável da etapa.',
+            ]);
+        }
+
+        /** @var \Illuminate\Database\Eloquent\Model|null $user */
+        $user = $userModel::query()->find($userId);
+        if (! $user || ! (bool) $checkRole($user, $requiredRoleId)) {
+            throw ValidationException::withMessages([
+                'user_id' => 'O responsável selecionado deve possuir a role padrão da etapa.',
+            ]);
+        }
     }
 }

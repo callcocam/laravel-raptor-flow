@@ -54,7 +54,7 @@ class FlowExecutionController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $toStep = FlowConfigStep::find($validated['to_step_id']);
+        $toStep = FlowConfigStep::find($validated['to_step_id']); 
         if (! $toStep) {
             return redirect()->back()->with('error', 'Etapa de destino inválida.');
         }
@@ -71,7 +71,7 @@ class FlowExecutionController extends Controller
 
             return redirect()->back()->with('success', 'Item movido com sucesso.');
         } catch (ValidationException $e) {
-            return redirect()->back()->withErrors($e->errors());
+            return redirect()->back()->withErrors($e->errors())->with('error', 'Não foi possível mover o item.');
         }
     }
 

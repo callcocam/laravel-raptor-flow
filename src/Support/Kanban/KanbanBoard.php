@@ -59,6 +59,12 @@ class KanbanBoard
 
     protected ?Closure $additionalQueryCallback = null;
 
+    protected ?Closure $modalActionsResolver = null;
+
+    protected ?Closure $cardActionsResolver = null;
+
+    protected ?Closure $cardLinksResolver = null;
+
     /** @var ExecutionColumn[] */
     protected array $columns = [];
 
@@ -141,6 +147,36 @@ class KanbanBoard
     public function additionalQuery(Closure $callback): static
     {
         $this->additionalQueryCallback = $callback;
+
+        return $this;
+    }
+
+    /**
+     * Resolver para ações do modal por execução (já com URL resolvida).
+     */
+    public function modalActions(Closure $resolver): static
+    {
+        $this->modalActionsResolver = $resolver;
+
+        return $this;
+    }
+
+    /**
+     * Resolver para ações de card por execução (já com URL resolvida).
+     */
+    public function cardActions(Closure $resolver): static
+    {
+        $this->cardActionsResolver = $resolver;
+
+        return $this;
+    }
+
+    /**
+     * Resolver para links de card por execução (já com URL resolvida).
+     */
+    public function cardLinks(Closure $resolver): static
+    {
+        $this->cardLinksResolver = $resolver;
 
         return $this;
     }
@@ -383,7 +419,22 @@ class KanbanBoard
                     'abandon' => $abilities['can_abandon'] ?? false,
                     'notes' => $abilities['can_notes'] ?? false,
                 ],
+                'modal_actions' => [],
+                'card_actions' => [],
+                'card_links' => [],
             ];
+
+            if ($this->modalActionsResolver !== null) {
+                $data['modal_actions'] = ($this->modalActionsResolver)($execution, $context) ?? [];
+            }
+
+            if ($this->cardActionsResolver !== null) {
+                $data['card_actions'] = ($this->cardActionsResolver)($execution, $context) ?? [];
+            }
+
+            if ($this->cardLinksResolver !== null) {
+                $data['card_links'] = ($this->cardLinksResolver)($execution, $context) ?? [];
+            }
 
             // Apply execution columns (domain enrichment)
             foreach ($this->columns as $column) {

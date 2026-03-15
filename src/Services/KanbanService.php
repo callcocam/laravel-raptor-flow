@@ -4,6 +4,8 @@ namespace Callcocam\LaravelRaptorFlow\Services;
 
 use Callcocam\LaravelRaptorFlow\Models\Flow;
 use Callcocam\LaravelRaptorFlow\Support\Actions\FlowAction;
+use Callcocam\LaravelRaptorFlow\Support\Builders\ConfigureKanbanCard;
+use Callcocam\LaravelRaptorFlow\Support\Builders\ConfigureKanbanModal;
 use Callcocam\LaravelRaptorFlow\Support\Display\DisplayColumn;
 use Callcocam\LaravelRaptorFlow\Support\Display\DisplaySection;
 use Callcocam\LaravelRaptorFlow\Support\Display\NotesBlock;
@@ -54,11 +56,18 @@ class KanbanService
     /** @var array<array{id: string, label?: string, style?: string, fields: array<mixed>}> */
     protected array $cardColumns = [];
 
+    /** @var array<array{key: string, label: string, url: string, position?: string, priority?: int, external?: bool}> */
+    protected array $cardLinks = [];
+
     /** @var array<array{id: string, label: string, url: string, placeholder?: string}> */
     protected array $notes = [];
 
     /** @var array<array{key: string, label: string, url: string, external?: bool}> */
     protected array $modalLinks = [];
+
+    protected ?ConfigureKanbanModal $modalBuilder = null;
+
+    protected ?ConfigureKanbanCard $cardBuilder = null;
 
     // ── Setters fluentes ──────────────────────────────────────────────────────
 
@@ -166,6 +175,25 @@ class KanbanService
         return $this;
     }
 
+    /**
+     * @param  array{key: string, label: string, url: string, position?: 'primary'|'secondary', priority?: int, external?: bool}  $link
+     */
+    public function addCardLink(array $link): static
+    {
+        $this->cardLinks[] = [
+            'key' => $link['key'],
+            'label' => $link['label'],
+            'url' => $link['url'],
+            'position' => in_array($link['position'] ?? 'secondary', ['primary', 'secondary'], true)
+                ? ($link['position'] ?? 'secondary')
+                : 'secondary',
+            'priority' => (int) ($link['priority'] ?? 0),
+            'external' => (bool) ($link['external'] ?? false),
+        ];
+
+        return $this;
+    }
+
     public function addNote(NotesBlock $block): static
     {
         $this->notes[] = $block->toArray();
@@ -179,6 +207,20 @@ class KanbanService
     public function addModalLink(array $link): static
     {
         $this->modalLinks[] = $link;
+
+        return $this;
+    }
+
+    public function modal(ConfigureKanbanModal $modal): static
+    {
+        $this->modalBuilder = $modal;
+
+        return $this;
+    }
+
+    public function card(ConfigureKanbanCard $card): static
+    {
+        $this->cardBuilder = $card;
 
         return $this;
     }
@@ -213,21 +255,45 @@ class KanbanService
      */
     public function getDetailModalConfig(): array
     {
+        $builderConfig = $this->modalBuilder?->toArray() ?? [
+            'sections' => [],
+            'actions' => [],
+            'links' => [],
+            'notes' => [],
+        ];
+
         return [
-            'sections' => $this->modalSections,
-            'actions'  => array_map(fn(FlowAction $a) => $a->toArray(), $this->actions),
-            'links'    => $this->modalLinks,
-            'notes'    => $this->notes,
+            'sections' => array_merge($builderConfig['sections'], $this->modalSections),
+            'actions'  => array_merge(
+                $builderConfig['actions'],
+                array_map(fn (FlowAction $a) => $a->toArray(), $this->actions)
+            ),
+            'links'    => array_merge($builderConfig['links'], $this->modalLinks),
+            'notes'    => array_merge($builderConfig['notes'], $this->notes),
         ];
     }
 
     /**
-     * @return array{columns: array<mixed>}
+     * @return array{columns: array<mixed>, links: array<mixed>}
      */
     public function getCardConfig(): array
     {
+        $builderConfig = $this->cardBuilder?->toArray() ?? ['columns' => [], 'links' => []];
+
+        $legacyLinks = $this->cardLinks;
+        usort($legacyLinks, function (array $left, array $right): int {
+            $priorityCompare = ($left['priority'] ?? 0) <=> ($right['priority'] ?? 0);
+
+            if ($priorityCompare !== 0) {
+                return $priorityCompare;
+            }
+
+            return strcmp((string) ($left['key'] ?? ''), (string) ($right['key'] ?? ''));
+        });
+
         return [
-            'columns' => $this->cardColumns,
+            'columns' => array_merge($builderConfig['columns'], $this->cardColumns),
+            'links' => array_merge($builderConfig['links'], $legacyLinks),
         ];
     }
 
@@ -272,6 +338,56 @@ class KanbanService
             ->filters($this->filters)
             ->withDetailModal($this->withDetailModal)
             ->columns($this->columns);
+
+        $legacyActions = $this->actions;
+        $modalBuilder = $this->modalBuilder;
+        $cardBuilder = $this->cardBuilder;
+
+        if ($modalBuilder !== null || $legacyActions !== []) {
+            $board->modalActions(function ($execution) use ($modalBuilder, $legacyActions) {
+                $builderActions = $modalBuilder?->resolveActionsForExecution($execution) ?? [];
+                $legacyResolved = array_values(array_map(
+                    fn (FlowAction $action) => $action->toArray($execution),
+                    array_filter($legacyActions, fn (FlowAction $action) => $action->isVisible($execution)),
+                ));
+
+                return array_merge($builderActions, $legacyResolved);
+            });
+        }
+
+        if ($cardBuilder !== null) {
+            $board->cardActions(fn ($execution) => $cardBuilder->resolveActionsForExecution($execution));
+            $board->cardLinks(fn ($execution) => $cardBuilder->resolveLinksForExecution($execution));
+        } elseif ($this->cardLinks !== []) {
+            $legacyLinks = $this->cardLinks;
+            $board->cardLinks(function ($execution) use ($legacyLinks) {
+                $resolved = array_map(function (array $link) use ($execution) {
+                    $url = str_replace('{id}', (string) $execution->id, $link['url']);
+                    $url = str_replace('{workable.id}', (string) ($execution->workable_id ?? ''), $url);
+
+                    return [
+                        'key' => $link['key'],
+                        'label' => $link['label'],
+                        'url' => $url,
+                        'position' => $link['position'] ?? 'secondary',
+                        'priority' => (int) ($link['priority'] ?? 0),
+                        'external' => (bool) ($link['external'] ?? false),
+                    ];
+                }, $legacyLinks);
+
+                usort($resolved, function (array $left, array $right): int {
+                    $priorityCompare = ($left['priority'] ?? 0) <=> ($right['priority'] ?? 0);
+
+                    if ($priorityCompare !== 0) {
+                        return $priorityCompare;
+                    }
+
+                    return strcmp((string) ($left['key'] ?? ''), (string) ($right['key'] ?? ''));
+                });
+
+                return $resolved;
+            });
+        }
 
         if ($this->workableIdsResolver !== null) {
             $board->workableIds($this->workableIdsResolver);

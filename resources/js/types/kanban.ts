@@ -1,4 +1,6 @@
 import type { FlowKanbanCardConfig } from './display'
+import type { FlowKanbanCardLinkConfig } from './display'
+import type { FlowActionSchema } from './detailModal'
 
 /**
  * Tipos genéricos para o Kanban do laravel-raptor-flow.
@@ -54,6 +56,11 @@ export interface FlowKanbanExecution {
   abilities?: Record<string, boolean> | null;
   action_visibility?: Record<string, boolean>;
   permissions?: FlowKanbanExecutionPermissions;
+  modal_actions?: FlowActionSchema[];
+  card_actions?: FlowActionSchema[];
+  card_links?: FlowKanbanCardLinkConfig[];
+  templateNextStep?: { id: string; name: string } | null;
+  templatePreviousStep?: { id: string; name: string } | null;
 }
 
 export interface FlowKanbanBoardTreeConfigItem {

@@ -10,7 +10,9 @@ use Illuminate\Contracts\Auth\Authenticatable;
 /**
  * Policy padrão context-aware: mesma validação que a app pode ter.
  * - start: execução Pending e usuário elegível (suggested_responsible, participants ou role via config).
- * - pause, resume, move, assign, abandon, notes: execução InProgress/Paused e usuário é o responsável (ou admin).
+ * - pause: apenas execução InProgress.
+ * - resume: apenas execução Paused.
+ * - move, assign, abandon, notes: execução InProgress/Paused e usuário é o responsável (ou admin).
  * - Role gate: se FlowConfigStep.default_role_id estiver definida, bloqueia todos os usuários sem a role,
  *   inclusive administradores. Sem bypass.
  *
@@ -46,12 +48,12 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
 
     public function pause(Authenticatable $user, FlowExecution $execution): bool
     {
-        return $this->canActAsResponsible($user, $execution);
+        return $this->canActAsResponsibleInStatus($user, $execution, FlowStatus::InProgress);
     }
 
     public function resume(Authenticatable $user, FlowExecution $execution): bool
     {
-        return $this->canActAsResponsible($user, $execution);
+        return $this->canActAsResponsibleInStatus($user, $execution, FlowStatus::Paused);
     }
 
     public function assign(Authenticatable $user, FlowExecution $execution): bool
@@ -99,11 +101,36 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             return false;
         }
 
+        if ($execution->status !== FlowStatus::InProgress && $execution->status !== FlowStatus::Paused) {
+            return false;
+        }
+
         if ($this->hasAdminPermission($user)) {
             return true;
         }
 
-        if ($execution->status !== FlowStatus::InProgress && $execution->status !== FlowStatus::Paused) {
+        $responsibleId = $execution->current_responsible_id;
+        if ($responsibleId === null) {
+            return false;
+        }
+
+        return (string) $responsibleId === (string) $user->getAuthIdentifier();
+    }
+    protected function canActAsResponsibleInStatus(Authenticatable $user, FlowExecution $execution, FlowStatus $requiredStatus): bool
+    {
+        if ($user === null) {
+            return false;
+        }
+
+        if (! $this->userPassesRoleGate($user, $execution)) {
+            return false;
+        }
+
+        if ($this->hasAdminPermission($user)) {
+            return $execution->status === $requiredStatus;
+        }
+
+        if ($execution->status !== $requiredStatus) {
             return false;
         }
 
@@ -114,7 +141,6 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
 
         return (string) $responsibleId === (string) $user->getAuthIdentifier();
     }
-
     /**
      * Verifica se o usuário atende à role obrigatória da etapa.
      * Quando default_role_id está definido, bloqueia usuários sem a role — sem bypass de admin.
@@ -130,7 +156,7 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
 
         $checkRole = config('flow.policy.check_role');
         if (! is_callable($checkRole)) {
-            return true;
+            return false;
         }
 
         return (bool) $checkRole($user, $step->default_role_id);

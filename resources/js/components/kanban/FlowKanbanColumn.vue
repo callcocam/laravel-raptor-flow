@@ -127,8 +127,6 @@ const columnColor = computed(() => props.step.color ?? '#6b7280');
         :execution="execution"
         :step-id="step.id"
         :card-config="cardConfig"
-        :next-step-name="step.templateNextStep?.name"
-        :previous-step-name="step.templatePreviousStep?.name"
         :user-roles="userRoles"
         :required-role="(execution as any).config?.responsible_role?.slug"
         :current-user-id="currentUserId"

@@ -61,4 +61,14 @@ export interface NotesBlockConfig {
 
 export interface FlowKanbanCardConfig {
   columns: DisplayColumnConfig[]
+  links?: FlowKanbanCardLinkConfig[]
+}
+
+export interface FlowKanbanCardLinkConfig {
+  key: string
+  label: string
+  url: string
+  position?: 'primary' | 'secondary'
+  priority?: number
+  external?: boolean
 }
