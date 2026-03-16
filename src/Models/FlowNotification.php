@@ -7,6 +7,8 @@ use Callcocam\LaravelRaptorFlow\Enums\FlowNotificationType;
 use Callcocam\LaravelRaptorFlow\Traits\UsesFlowConnection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -45,5 +47,27 @@ class FlowNotification extends Model
     public function notifiable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function configStep(): BelongsTo
+    {
+        return $this->belongsTo(FlowConfigStep::class, 'flow_config_step_id');
+    }
+
+    public function scopeUnread(Builder $query): Builder
+    {
+        return $query->where('is_read', false);
+    }
+
+    public function markAsRead(): bool
+    {
+        if ($this->is_read) {
+            return true;
+        }
+
+        return $this->update([
+            'is_read' => true,
+            'read_at' => now(),
+        ]);
     }
 }

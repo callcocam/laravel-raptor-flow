@@ -7,6 +7,7 @@ use Callcocam\LaravelRaptorFlow\Traits\UsesFlowConnection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -65,5 +66,15 @@ class FlowExecution extends Model
     public function stepTemplate(): BelongsTo
     {
         return $this->belongsTo(FlowStepTemplate::class, 'flow_step_template_id');
+    }
+
+    public function metrics(): HasMany
+    {
+        return $this->hasMany(FlowMetric::class, 'workable_id', 'workable_id');
+    }
+
+    public function notifications(): HasMany
+    {
+        return $this->hasMany(FlowNotification::class, 'notifiable_id', 'workable_id');
     }
 }

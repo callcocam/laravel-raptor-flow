@@ -6,6 +6,7 @@ use Callcocam\LaravelRaptorFlow\Enums\FlowAction;
 use Callcocam\LaravelRaptorFlow\Traits\UsesFlowConnection;
 use Illuminate\Database\Eloquent\Concerns\HasUlids;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class FlowHistory extends Model
@@ -50,5 +51,20 @@ class FlowHistory extends Model
     public function workable(): MorphTo
     {
         return $this->morphTo();
+    }
+
+    public function configStep(): BelongsTo
+    {
+        return $this->belongsTo(FlowConfigStep::class, 'flow_config_step_id');
+    }
+
+    public function fromStep(): BelongsTo
+    {
+        return $this->belongsTo(FlowConfigStep::class, 'from_step_id');
+    }
+
+    public function toStep(): BelongsTo
+    {
+        return $this->belongsTo(FlowConfigStep::class, 'to_step_id');
     }
 }

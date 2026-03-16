@@ -16,6 +16,8 @@ class FlowStepTemplate extends Model
     use SoftDeletes;
     use UsesFlowConnection;
 
+    protected $appends = ['users'];
+
     protected $fillable = [
         'user_id',
         'tenant_id',
@@ -79,6 +81,21 @@ class FlowStepTemplate extends Model
     public function templatePreviousStep(): BelongsTo
     {
         return $this->belongsTo(FlowStepTemplate::class, 'template_previous_step_id');
+    }
+
+    /**
+     * @return array<int, string>
+     */
+    public function getUsersAttribute(): array
+    {
+        $metadata = is_array($this->metadata) ? $this->metadata : [];
+
+        return collect($metadata['suggested_users'] ?? [])
+            ->filter(fn ($value) => ! is_null($value) && $value !== '')
+            ->map(fn ($value) => (string) $value)
+            ->unique()
+            ->values()
+            ->all();
     }
 
     /**

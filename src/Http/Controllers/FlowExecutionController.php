@@ -155,11 +155,10 @@ class FlowExecutionController extends Controller
      * Responsável atual abandona a etapa.
      */
     public function abandon(FlowExecution $execution): RedirectResponse
-    { 
+    {
         $this->authorize('abandon', $execution);
 
         $user = auth()->id();
-        dd($user);
         if (! $user) {
             return redirect()->back()->with('error', 'Usuário não autenticado.');
         }

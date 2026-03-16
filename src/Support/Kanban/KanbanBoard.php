@@ -11,6 +11,7 @@ namespace Callcocam\LaravelRaptorFlow\Support\Kanban;
 use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
 use Callcocam\LaravelRaptorFlow\Models\Flow;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
+use Callcocam\LaravelRaptorFlow\Models\FlowNotification;
 use Callcocam\LaravelRaptorFlow\Models\FlowStepTemplate;
 use Callcocam\LaravelRaptorFlow\Policies\FlowExecutionPolicy;
 use Callcocam\LaravelRaptorFlow\Support\Kanban\Columns\ExecutionColumn;
@@ -319,8 +320,24 @@ class KanbanBoard
     {
         $with = ['configStep.stepTemplate', 'stepTemplate'];
 
+        $with['metrics'] = function ($query): void {
+            $query->where('workable_type', $this->workableType)
+                ->orderByDesc('calculated_at')
+                ->orderByDesc('created_at');
+        };
+
         if ($this->withDetailModal) {
             $with[] = 'configStep.participants';
+
+            $authUserId = auth()->id();
+            $with['notifications'] = function ($query) use ($authUserId): void {
+                    $query->where('notifiable_type', $this->workableType)
+                        ->orderByDesc('created_at');
+
+                if ($authUserId) {
+                    $query->where('user_id', (string) $authUserId);
+                }
+            };
         }
 
         $query = FlowExecution::query()
@@ -471,9 +488,20 @@ class KanbanBoard
                 }
 
                 $data['config'] = ['users' => $participants->toArray()];
+                $data['metrics_summary'] = $this->buildMetricsSummary($execution);
+                $data['notifications_summary'] = $this->buildNotificationsSummary($execution);
             } else {
                 $data['currentResponsible'] = null;
                 $data['startedBy'] = null;
+                $data['metrics_summary'] = [
+                    'count' => 0,
+                    'latest' => null,
+                ];
+                $data['notifications_summary'] = [
+                    'count' => 0,
+                    'unread_count' => 0,
+                    'latest' => [],
+                ];
             }
 
             return $data;
@@ -497,6 +525,90 @@ class KanbanBoard
     protected function getFiltersResponse(): array
     {
         return $this->filters;
+    }
+
+    /**
+     * @return array{count: int, latest: array<string, mixed>|null}
+     */
+    protected function buildMetricsSummary(FlowExecution $execution): array
+    {
+        $metrics = $execution->relationLoaded('metrics')
+            ? $execution->metrics
+            : collect();
+
+        $latest = $metrics
+            ->sortByDesc(fn ($metric) => $metric->calculated_at ?? $metric->created_at)
+            ->first();
+
+        return [
+            'count' => $metrics->count(),
+            'latest' => $latest ? [
+                'id' => (string) $latest->id,
+                'total_duration_minutes' => $latest->total_duration_minutes,
+                'effective_work_minutes' => $latest->effective_work_minutes,
+                'estimated_duration_minutes' => $latest->estimated_duration_minutes,
+                'deviation_minutes' => $latest->deviation_minutes,
+                'is_on_time' => (bool) $latest->is_on_time,
+                'is_rework' => (bool) $latest->is_rework,
+                'rework_count' => $latest->rework_count,
+                'started_at' => $latest->started_at?->toIso8601String(),
+                'completed_at' => $latest->completed_at?->toIso8601String(),
+                'calculated_at' => $latest->calculated_at?->toIso8601String(),
+            ] : null,
+        ];
+    }
+
+    /**
+     * @return array{count: int, unread_count: int, latest: array<int, array<string, mixed>>}
+     */
+    protected function buildNotificationsSummary(FlowExecution $execution): array
+    {
+        $notifications = $execution->relationLoaded('notifications')
+            ? $execution->notifications
+            : collect();
+
+        $latest = $notifications
+            ->sortByDesc(fn (FlowNotification $notification) => $notification->created_at)
+            ->take(5)
+            ->values()
+            ->map(function (FlowNotification $notification): array {
+                return [
+                    'id' => (string) $notification->id,
+                    'type' => $notification->type?->value,
+                    'priority' => $notification->priority?->value,
+                    'title' => $notification->title,
+                    'message' => $notification->message,
+                    'is_read' => (bool) $notification->is_read,
+                    'read_at' => $notification->read_at?->toIso8601String(),
+                    'created_at' => $notification->created_at?->toIso8601String(),
+                ];
+            })
+            ->all();
+
+        $latestTitles = collect($latest)
+            ->map(function (array $item): ?string {
+                $title = $item['title'] ?? null;
+                $message = $item['message'] ?? null;
+
+                if (is_string($title) && $title !== '') {
+                    return is_string($message) && $message !== ''
+                        ? sprintf('• %s - %s', $title, $message)
+                        : sprintf('• %s', $title);
+                }
+
+                return is_string($message) && $message !== ''
+                    ? sprintf('• %s', $message)
+                    : null;
+            })
+            ->filter()
+            ->implode("\n");
+
+        return [
+            'count' => $notifications->count(),
+            'unread_count' => $notifications->where('is_read', false)->count(),
+            'latest' => $latest,
+            'latest_titles' => $latestTitles !== '' ? $latestTitles : '—',
+        ];
     }
 
     protected function hasFilter(string $key): bool

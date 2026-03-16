@@ -4,14 +4,14 @@ namespace Callcocam\LaravelRaptorFlow\Services;
 
 use Callcocam\LaravelRaptorFlow\Contracts\Workable;
 use Callcocam\LaravelRaptorFlow\Enums\FlowAction;
-use Callcocam\LaravelRaptorFlow\Enums\FlowParticipantRole;
 use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
 use Callcocam\LaravelRaptorFlow\Models\FlowConfigStep;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
-use Callcocam\LaravelRaptorFlow\Models\FlowHistory;
 use Callcocam\LaravelRaptorFlow\Models\FlowParticipant;
 use Callcocam\LaravelRaptorFlow\Models\FlowPreset;
 use Callcocam\LaravelRaptorFlow\Models\FlowStepTemplate;
+use Callcocam\LaravelRaptorFlow\Support\Builders\FlowPresetStepPayloadBuilder;
+use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 
@@ -22,6 +22,44 @@ use Illuminate\Validation\ValidationException;
  */
 class FlowManager
 {
+    public function __construct(
+        public ?SyncDefaultStepParticipantsService $syncDefaultStepParticipantsService = null,
+        public ?FlowPresetStepPayloadBuilder $flowPresetStepPayloadBuilder = null,
+        public ?RecordFlowHistoryService $recordFlowHistoryService = null,
+        public ?RecordFlowMetricService $recordFlowMetricService = null,
+        public ?FlowNotificationService $flowNotificationService = null,
+    ) {}
+
+    protected function syncDefaultStepParticipantsService(): SyncDefaultStepParticipantsService
+    {
+        return $this->syncDefaultStepParticipantsService
+            ??= app(SyncDefaultStepParticipantsService::class);
+    }
+
+    protected function flowPresetStepPayloadBuilder(): FlowPresetStepPayloadBuilder
+    {
+        return $this->flowPresetStepPayloadBuilder
+            ??= app(FlowPresetStepPayloadBuilder::class);
+    }
+
+    protected function recordFlowHistoryService(): RecordFlowHistoryService
+    {
+        return $this->recordFlowHistoryService
+            ??= app(RecordFlowHistoryService::class);
+    }
+
+    protected function recordFlowMetricService(): RecordFlowMetricService
+    {
+        return $this->recordFlowMetricService
+            ??= app(RecordFlowMetricService::class);
+    }
+
+    protected function flowNotificationService(): FlowNotificationService
+    {
+        return $this->flowNotificationService
+            ??= app(FlowNotificationService::class);
+    }
+
     /**
      * Aplica um preset: cria FlowConfigSteps para o configurável a partir do preset.
      *
@@ -30,27 +68,21 @@ class FlowManager
     public function applyPreset(Workable $configurable, string $presetSlug): Collection
     {
         $preset = FlowPreset::where('slug', $presetSlug)->where('is_active', true)->firstOrFail();
-        $preset->load('steps.stepTemplate');
+        $preset->load('steps.stepTemplate', 'steps.participants');
 
         $order = 1;
         $steps = [];
         foreach ($preset->steps as $presetStep) {
-            $steps[] = FlowConfigStep::create([
+            $payload = $this->flowPresetStepPayloadBuilder()->buildFromPresetStep($presetStep, $order++);
+
+            $step = FlowConfigStep::create(array_merge([
                 'configurable_type' => get_class($configurable),
                 'configurable_id' => $configurable->getWorkflowKey(),
-                'flow_step_template_id' => $presetStep->workflow_step_template_id,
-                'name' => $presetStep->name ?? $presetStep->stepTemplate?->name,
-                'description' => $presetStep->stepTemplate?->description,
-                'order' => $order++,
-                'default_role_id' => $presetStep->default_role_id,
-                'suggested_responsible_id' => $presetStep->suggested_responsible_id,
-                'estimated_duration_days' => $presetStep->estimated_duration_days ?? $presetStep->stepTemplate?->estimated_duration_days,
-                'is_required' => $presetStep->is_required,
-                'is_active' => true,
-                'allow_skip' => $presetStep->allow_skip,
-                'auto_assign_role' => $presetStep->auto_assign_role,
-                'auto_assign_user' => $presetStep->auto_assign_user,
-            ]);
+            ], Arr::except($payload, ['users'])));
+
+            $this->syncDefaultStepParticipantsService()->syncForStep($step, $payload['users'] ?? []);
+
+            $steps[] = $step;
         }
 
         return collect($steps);
@@ -130,49 +162,7 @@ class FlowManager
                 ]
             );
 
-            $this->syncParticipantsForStep($configStep, $stepData['users'] ?? []);
-        }
-    }
-
-    /**
-     * @param  array<int, string>  $userIds
-     */
-    protected function syncParticipantsForStep(FlowConfigStep $configStep, array $userIds): void
-    {
-        $normalizedUserIds = collect($userIds)
-            ->filter(fn ($id) => $id !== null && $id !== '')
-            ->map(fn ($id) => (string) $id)
-            ->unique()
-            ->values()
-            ->all();
-
-        $participantsQuery = FlowParticipant::query()
-            ->where('participable_type', FlowConfigStep::class)
-            ->where('participable_id', $configStep->id);
-
-        if ($normalizedUserIds === []) {
-            $participantsQuery->delete();
-
-            return;
-        }
-
-        $participantsQuery
-            ->whereNotIn('user_id', $normalizedUserIds)
-            ->delete();
-
-        foreach ($normalizedUserIds as $userId) {
-            FlowParticipant::updateOrCreate(
-                [
-                    'user_id' => $userId,
-                    'participable_type' => FlowConfigStep::class,
-                    'participable_id' => $configStep->id,
-                ],
-                [
-                    'role_in_step' => FlowParticipantRole::Assignee,
-                    'is_pre_assigned' => true,
-                    'assigned_at' => now(),
-                ]
-            );
+            $this->syncDefaultStepParticipantsService()->syncForStep($configStep, $stepData['users'] ?? []);
         }
     }
 
@@ -232,15 +222,18 @@ class FlowManager
             'sla_date' => $slaDate,
         ]);
 
-        FlowHistory::create([
-            'workable_type' => get_class($workable),
-            'workable_id' => $workable->getWorkflowKey(),
+        $this->recordFlowHistoryService()->record($execution, FlowAction::Start, [
             'flow_config_step_id' => $firstStep->id,
-            'action' => FlowAction::Start,
             'user_id' => $startedByUserId,
-            'performed_at' => now(),
             'notes' => 'Workflow iniciado manualmente',
         ]);
+
+        $this->flowNotificationService()->notifyAssigned(
+            $execution,
+            $startedByUserId,
+            'Workflow iniciado',
+            'Você iniciou e assumiu esta execução do workflow.',
+        );
 
         return $execution->load(['configStep', 'stepTemplate']);
     }
@@ -292,6 +285,8 @@ class FlowManager
      */
     public function moveExecution(FlowExecution $execution, FlowConfigStep $toStep, string|int|null $movedByUserId = null, ?string $notes = null): FlowExecution
     {
+        $transitionedAt = now();
+
         $execution->load('configStep');
         $fromStep = $execution->configStep;
         if (! $fromStep) {
@@ -318,10 +313,10 @@ class FlowManager
 
         $durationMinutes = null;
         if ($execution->started_at) {
-            $durationMinutes = (int) now()->diffInMinutes($execution->started_at);
+            $durationMinutes = (int) $transitionedAt->diffInMinutes($execution->started_at);
         }
         $slaAtTransition = $execution->sla_date;
-        $wasOverdue = $execution->sla_date && now()->isAfter($execution->sla_date);
+        $wasOverdue = $execution->sla_date && $transitionedAt->isAfter($execution->sla_date);
         $previousResponsibleId = $execution->current_responsible_id;
         $snapshotBefore = $execution->only([
             'flow_config_step_id', 'flow_step_template_id', 'status', 'current_responsible_id',
@@ -329,7 +324,7 @@ class FlowManager
         ]);
 
         $estimatedDays = (int) ($toStep->estimated_duration_days ?? 2);
-        $newSlaDate = $estimatedDays > 0 ? now()->addDays($estimatedDays) : null;
+        $newSlaDate = $estimatedDays > 0 ? $transitionedAt->copy()->addDays($estimatedDays) : null;
 
         $execution->update([
             'flow_config_step_id' => $toStep->id,
@@ -344,22 +339,43 @@ class FlowManager
             'paused_duration_minutes' => 0,
         ]);
 
-        FlowHistory::create([
-            'workable_type' => $execution->workable_type,
-            'workable_id' => $execution->workable_id,
+        $this->recordFlowHistoryService()->record($execution, FlowAction::Move, [
             'flow_config_step_id' => $toStep->id,
-            'action' => FlowAction::Move,
             'from_step_id' => $fromStep->id,
             'to_step_id' => $toStep->id,
             'user_id' => $movedByUserId,
             'previous_responsible_id' => $previousResponsibleId,
-            'performed_at' => now(),
             'duration_in_step_minutes' => $durationMinutes,
             'sla_at_transition' => $slaAtTransition,
             'was_overdue' => $wasOverdue,
             'notes' => $notes,
             'snapshot' => $snapshotBefore,
         ]);
+
+        $this->recordFlowMetricService()->recordStepTransitionMetric(
+            $execution,
+            $fromStep,
+            $toStep,
+            $transitionedAt,
+        );
+
+        $this->flowNotificationService()->notifyMoved(
+            $execution,
+            $movedByUserId,
+            $fromStep,
+            $toStep,
+        );
+
+        $this->flowNotificationService()->notifyAssigned(
+            $execution,
+            $toStep->suggested_responsible_id,
+            'Nova etapa disponível',
+            'Uma execução foi movida para sua etapa sugerida no workflow.',
+            metadata: [
+                'from_step_id' => (string) $fromStep->id,
+                'to_step_id' => (string) $toStep->id,
+            ],
+        );
 
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
@@ -422,15 +438,18 @@ class FlowManager
             'sla_date' => $slaDate,
         ]);
 
-        FlowHistory::create([
-            'workable_type' => $execution->workable_type,
-            'workable_id' => $execution->workable_id,
+        $this->recordFlowHistoryService()->record($execution, FlowAction::Start, [
             'flow_config_step_id' => $firstStep->id,
-            'action' => FlowAction::Start,
             'user_id' => $startedByUserId,
-            'performed_at' => now(),
             'notes' => 'Workflow iniciado manualmente',
         ]);
+
+        $this->flowNotificationService()->notifyAssigned(
+            $execution,
+            $startedByUserId,
+            'Execução iniciada',
+            'Você assumiu uma execução pendente do workflow.',
+        );
 
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
@@ -448,13 +467,8 @@ class FlowManager
             'paused_at' => now(),
         ]);
 
-        FlowHistory::create([
-            'workable_type' => $execution->workable_type,
-            'workable_id' => $execution->workable_id,
-            'flow_config_step_id' => $execution->flow_config_step_id,
-            'action' => FlowAction::Pause,
+        $this->recordFlowHistoryService()->record($execution, FlowAction::Pause, [
             'user_id' => $pausedByUserId,
-            'performed_at' => now(),
         ]);
 
         return $execution->fresh(['configStep', 'stepTemplate']);
@@ -477,13 +491,8 @@ class FlowManager
             'paused_duration_minutes' => $totalPaused,
         ]);
 
-        FlowHistory::create([
-            'workable_type' => $execution->workable_type,
-            'workable_id' => $execution->workable_id,
-            'flow_config_step_id' => $execution->flow_config_step_id,
-            'action' => FlowAction::Resume,
+        $this->recordFlowHistoryService()->record($execution, FlowAction::Resume, [
             'user_id' => $resumedByUserId,
-            'performed_at' => now(),
         ]);
 
         return $execution->fresh(['configStep', 'stepTemplate']);
@@ -508,17 +517,23 @@ class FlowManager
             'started_at' => $execution->started_at ?? now(),
         ]);
 
-        FlowHistory::create([
-            'workable_type' => $execution->workable_type,
-            'workable_id' => $execution->workable_id,
-            'flow_config_step_id' => $execution->flow_config_step_id,
-            'action' => FlowAction::Reassign,
+        $this->recordFlowHistoryService()->record($execution, FlowAction::Reassign, [
             'user_id' => $assignedByUserId,
             'previous_responsible_id' => $previousResponsibleId,
             'new_responsible_id' => $assignedToUserId,
-            'performed_at' => now(),
             'notes' => $notes,
         ]);
+
+        $this->flowNotificationService()->notifyAssigned(
+            $execution,
+            $assignedToUserId,
+            'Responsabilidade atribuída',
+            'Você foi designado como responsável desta execução de workflow.',
+            metadata: [
+                'assigned_by' => (string) $assignedByUserId,
+                'previous_responsible_id' => $previousResponsibleId ? (string) $previousResponsibleId : null,
+            ],
+        );
 
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
@@ -544,14 +559,9 @@ class FlowManager
             'status' => FlowStatus::Pending,
         ]);
 
-        FlowHistory::create([
-            'workable_type' => $execution->workable_type,
-            'workable_id' => $execution->workable_id,
-            'flow_config_step_id' => $execution->flow_config_step_id,
-            'action' => FlowAction::Abandon,
+        $this->recordFlowHistoryService()->record($execution, FlowAction::Abandon, [
             'user_id' => $abandonedByUserId,
             'previous_responsible_id' => $previousResponsibleId,
-            'performed_at' => now(),
         ]);
 
         return $execution->fresh(['configStep', 'stepTemplate']);

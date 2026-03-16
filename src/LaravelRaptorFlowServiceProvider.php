@@ -5,7 +5,6 @@ namespace Callcocam\LaravelRaptorFlow;
 use Callcocam\LaravelRaptorFlow\Commands\LaravelRaptorFlowCommand;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Callcocam\LaravelRaptorFlow\Policies\FlowExecutionPolicy;
-use Callcocam\LaravelRaptorFlow\Services\FlowManager;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
@@ -21,8 +20,6 @@ class LaravelRaptorFlowServiceProvider extends PackageServiceProvider
 
         // Flow no banco principal (landlord): não rodar migrations do flow nos bancos de cliente.
         Config::set('flow.client_migrations_path', null);
-
-        $this->app->singleton(FlowManager::class, fn () => new FlowManager);
     }
 
     public function configurePackage(Package $package): void
@@ -63,7 +60,7 @@ class LaravelRaptorFlowServiceProvider extends PackageServiceProvider
 
         if (! is_file($routeFile)) {
             return;
-        } 
+        }
         Route::middleware($middleware)
             ->prefix($prefix)
             ->group($routeFile);

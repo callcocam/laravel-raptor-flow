@@ -64,6 +64,36 @@ export interface FlowKanbanExecution {
   modal_actions?: FlowActionSchema[];
   card_actions?: FlowActionSchema[];
   card_links?: FlowKanbanCardLinkConfig[];
+  metrics_summary?: {
+    count: number;
+    latest: {
+      id: string;
+      total_duration_minutes?: number | null;
+      effective_work_minutes?: number | null;
+      estimated_duration_minutes?: number | null;
+      deviation_minutes?: number | null;
+      is_on_time?: boolean;
+      is_rework?: boolean;
+      rework_count?: number | null;
+      started_at?: string | null;
+      completed_at?: string | null;
+      calculated_at?: string | null;
+    } | null;
+  };
+  notifications_summary?: {
+    count: number;
+    unread_count: number;
+    latest: Array<{
+      id: string;
+      type?: string;
+      priority?: string;
+      title?: string;
+      message?: string | null;
+      is_read: boolean;
+      read_at?: string | null;
+      created_at?: string | null;
+    }>;
+  };
   templateNextStep?: { id: string; name: string } | null;
   templatePreviousStep?: { id: string; name: string } | null;
 }
