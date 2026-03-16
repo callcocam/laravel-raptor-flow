@@ -39,6 +39,11 @@ export interface FlowKanbanExecutionPermissions {
 export interface FlowKanbanExecution {
   id: string;
   status: string;
+  status_presentation?: {
+    label: string;
+    icon: string;
+    class: string;
+  };
   workflow_step_template_id: string;
   flow_config_step_id?: string;
   current_responsible_id?: string | null;

@@ -1,6 +1,18 @@
 import type { DisplayCardItemConfig, DisplayFieldConfig } from '../types/display'
 import type { FlowKanbanExecution } from '../types/kanban'
 
+function isStatusKey(key?: string): boolean {
+  return key === 'status' || key === 'workable.status'
+}
+
+function statusPresentationClass(execution?: FlowKanbanExecution): string | null {
+  return execution?.status_presentation?.class ?? null
+}
+
+function statusPresentationLabel(execution?: FlowKanbanExecution): string | null {
+  return execution?.status_presentation?.label ?? null
+}
+
 export function resolveDisplayValue(source: unknown, path: string): unknown {
   const keys = path.split('.')
   let value: unknown = source
@@ -15,9 +27,13 @@ export function resolveDisplayValue(source: unknown, path: string): unknown {
   return value
 }
 
-export function formatDisplayValue(value: unknown, format?: string): string {
+export function formatDisplayValue(value: unknown, format?: string, execution?: FlowKanbanExecution, key?: string): string {
   if (value == null || value === '') {
     return '—'
+  }
+
+  if (format === 'badge' && isStatusKey(key)) {
+    return statusPresentationLabel(execution) ?? String(value)
   }
 
   if (format === 'date') {
@@ -39,11 +55,17 @@ export function resolveFieldValue(execution: FlowKanbanExecution, field: Display
   return resolveDisplayValue(execution, field.key)
 }
 
-export function resolveCardItemValue(execution: FlowKanbanExecution, card: DisplayCardItemConfig): string {
-  return formatDisplayValue(resolveDisplayValue(execution, card.key), card.format)
+export function resolveCardItemRawValue(execution: FlowKanbanExecution, card: DisplayCardItemConfig): unknown {
+  return resolveDisplayValue(execution, card.key)
 }
 
-export function badgeClass(value: unknown, variant?: string): string {
+export function resolveCardItemValue(execution: FlowKanbanExecution, card: DisplayCardItemConfig): string {
+  return formatDisplayValue(resolveCardItemRawValue(execution, card), card.format, execution, card.key)
+}
+
+export function badgeClass(value: unknown, variant?: string, execution?: FlowKanbanExecution, key?: string): string {
+  const backendStatusClass = isStatusKey(key) ? statusPresentationClass(execution) : null
+
   if (variant) {
     const explicitMap: Record<string, string> = {
       default: 'bg-muted text-muted-foreground',
@@ -54,6 +76,10 @@ export function badgeClass(value: unknown, variant?: string): string {
     }
 
     return explicitMap[variant] ?? explicitMap.default
+  }
+
+  if (backendStatusClass) {
+    return backendStatusClass
   }
 
   const statusMap: Record<string, string> = {

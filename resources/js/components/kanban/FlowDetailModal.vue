@@ -47,17 +47,24 @@ const titleUrl = computed((): string | null => {
   return typeof url === 'function' ? url(props.execution) : url
 })
 
+const statusIcons = {
+  AlertCircle,
+  Play,
+  CheckCircle,
+  XCircle,
+  Pause,
+} as const
+
 const statusBadgeConfig = computed(() => {
-  const status = props.execution?.status ?? 'pending'
-  const configs: Record<string, { label: string; icon: typeof AlertCircle; class: string }> = {
-    pending: { label: 'Pendente', icon: AlertCircle, class: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200' },
-    in_progress: { label: 'Em Andamento', icon: Play, class: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' },
-    completed: { label: 'Concluída', icon: CheckCircle, class: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' },
-    blocked: { label: 'Bloqueada', icon: XCircle, class: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' },
-    paused: { label: 'Pausada', icon: Pause, class: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' },
-    skipped: { label: 'Pulada', icon: XCircle, class: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200' },
+  const presentation = props.execution?.status_presentation
+  const fallbackLabel = props.execution?.status ?? 'pending'
+  const iconName = presentation?.icon as keyof typeof statusIcons | undefined
+
+  return {
+    label: presentation?.label ?? fallbackLabel,
+    icon: iconName ? statusIcons[iconName] : AlertCircle,
+    class: presentation?.class ?? 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
   }
-  return configs[status] ?? { label: status, icon: AlertCircle, class: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200' }
 })
 
 function resolveLink(url: string | ((e: unknown) => string), execution: FlowKanbanExecution): string {
@@ -67,20 +74,10 @@ function resolveLink(url: string | ((e: unknown) => string), execution: FlowKanb
 function isActionVisible(action: FlowActionSchema): boolean {
   const execution = props.execution
 
-  // Fonte primária de verdade: mapa de visibilidade dirigido por policy no backend.
   if (execution?.action_visibility && action.id in execution.action_visibility) {
     return Boolean(execution.action_visibility[action.id])
   }
 
-  // Compatibilidade para cenários em que apenas o mapa de abilities está disponível.
-  if (execution?.abilities) {
-    const abilityKey = action.id === 'notes' ? 'can_notes' : `can_${action.id}`
-    if (abilityKey in execution.abilities) {
-      return Boolean(execution.abilities[abilityKey])
-    }
-  }
-
-  // Sem informação de visibilidade vinda do backend, a ação não deve ser exibida.
   return false
 }
 

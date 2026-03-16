@@ -23,6 +23,8 @@ class DisplayColumn
 
     protected string|Closure|null $style = null;
 
+    protected bool|Closure|null $showWhenEmpty = null;
+
     /** @var array<int, DisplayField|array<string, mixed>> */
     protected array $fields = [];
 
@@ -38,6 +40,13 @@ class DisplayColumn
     public function addField(DisplayField|array $field): static
     {
         $this->fields[] = $field;
+
+        return $this;
+    }
+
+    public function showWhenEmpty(bool|Closure $condition = true): static
+    {
+        $this->showWhenEmpty = $condition;
 
         return $this;
     }
@@ -64,6 +73,7 @@ class DisplayColumn
             'id' => $this->id,
             'label' => $this->evaluateConfiguredValue($this->label, $target),
             'style' => $this->evaluateConfiguredValue($this->style, $target),
+            'showWhenEmpty' => $this->evaluateConfiguredValue($this->showWhenEmpty, $target),
             'fields' => $fields,
         ], fn (mixed $value): bool => $value !== null);
     }

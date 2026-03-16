@@ -49,6 +49,7 @@ export interface DisplayColumnConfig {
   id: string
   label?: string
   style?: string
+  showWhenEmpty?: boolean
   fields: DisplayFieldConfig[]
 }
 

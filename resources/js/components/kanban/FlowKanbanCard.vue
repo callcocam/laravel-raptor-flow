@@ -2,6 +2,7 @@
 import type { FlowKanbanCardConfig, FlowKanbanCardLinkConfig } from '../../types/display';
 import type { FlowActionSchema } from '../../types/detailModal';
 import type { FlowKanbanExecution } from '../../types/kanban';
+import { resolveDisplayValue } from '../../composables/display';
 import FlowActionRenderer from '../actions/FlowActionRenderer.vue';
 import DisplayFieldRenderer from './DisplayFieldRenderer.vue';
 import { computed, inject, ref, type Ref } from 'vue';
@@ -30,30 +31,41 @@ const currentDragData = inject<Ref<{ groupId: string; fromStepId: string } | nul
 );
 
 const canDrag = computed(() => {
-  const canMoveFromVisibility = props.execution.action_visibility?.move;
-  if (typeof canMoveFromVisibility === 'boolean') {
-    return canMoveFromVisibility;
-  }
-
-  const canMoveFromAbilities = props.execution.abilities?.can_move;
-  if (typeof canMoveFromAbilities === 'boolean') {
-    return canMoveFromAbilities;
-  }
-
-  const canMoveFromPermissions = props.execution.permissions?.can_move;
-  if (typeof canMoveFromPermissions === 'boolean') {
-    return canMoveFromPermissions;
-  }
-
-  return false;
+  return Boolean(props.execution.action_visibility?.move);
 });
+
+function hasFieldValue(value: unknown): boolean {
+  if (value === null || value === undefined || value === '') {
+    return false;
+  }
+
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  if (typeof value === 'object') {
+    return Object.keys(value as Record<string, unknown>).length > 0;
+  }
+
+  return true;
+}
 
 const configuredColumns = computed(() => {
   return (props.cardConfig?.columns ?? [])
-    .map((column) => ({
-      ...column,
-      fields: column.fields.filter((field) => field.key !== 'notes'),
-    }))
+    .map((column) => {
+      const showWhenEmpty = Boolean(column.showWhenEmpty)
+
+      return {
+        ...column,
+        fields: column.fields.filter((field) => {
+          if (field.key === 'notes') {
+            return false
+          }
+
+          return showWhenEmpty || hasFieldValue(resolveDisplayValue(props.execution, field.key))
+        }),
+      }
+    })
     .filter((column) => column.fields.length > 0)
 });
 const cardActions = computed(() => props.execution.card_actions ?? []);

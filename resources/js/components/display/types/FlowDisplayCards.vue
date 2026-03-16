@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { resolveCardItemValue } from '../../../composables/display'
+import { badgeClass, resolveCardItemRawValue, resolveCardItemValue } from '../../../composables/display'
 import type { DisplayCardItemConfig, DisplayFieldConfig } from '../../../types/display'
 import type { FlowKanbanExecution } from '../../../types/kanban'
 import { computed } from 'vue'
@@ -21,6 +21,15 @@ const containerClass = computed(() =>
 function formatCard(card: DisplayCardItemConfig): string {
   return resolveCardItemValue(props.execution, card)
 }
+
+function cardBadgeClass(card: DisplayCardItemConfig): string {
+  return badgeClass(
+    resolveCardItemRawValue(props.execution, card),
+    card.variant,
+    props.execution,
+    card.key,
+  )
+}
 </script>
 
 <template>
@@ -33,7 +42,14 @@ function formatCard(card: DisplayCardItemConfig): string {
       <p v-if="card.label" :class="mode === 'card' ? 'text-[11px] text-muted-foreground' : 'text-xs text-muted-foreground'">
         {{ card.label }}
       </p>
-      <p :class="mode === 'card' ? 'text-xs font-semibold text-card-foreground' : 'mt-1 text-sm font-semibold text-foreground'">
+      <span
+        v-if="card.format === 'badge'"
+        class="mt-1 inline-flex rounded-full px-2 py-0.5 text-xs font-medium"
+        :class="cardBadgeClass(card)"
+      >
+        {{ formatCard(card) }}
+      </span>
+      <p v-else :class="mode === 'card' ? 'text-xs font-semibold text-card-foreground' : 'mt-1 text-sm font-semibold text-foreground'">
         {{ formatCard(card) }}
       </p>
     </div>

@@ -19,45 +19,30 @@ const props = withDefaults(defineProps<Props>(), {
   mode: 'modal',
 })
 
+const typeMap: Record<DisplayFieldType, string> = {
+  text: 'flow-display-text',
+  label: 'flow-display-label',
+  textarea: 'flow-display-textarea',
+  date: 'flow-display-date',
+  datetime: 'flow-display-datetime',
+  badge: 'flow-display-badge',
+  link: 'flow-display-link',
+  cards: 'flow-display-cards',
+  timeline: 'flow-display-timeline',
+  selectUsers: 'flow-display-select-users',
+  custom: 'flow-display-custom',
+}
+
 const fieldValue = computed(() => resolveFieldValue(props.execution, props.field))
-const component = computed(() => {
-  const override = props.field.component
 
-  if (!override) {
-    const typeMap: Record<DisplayFieldType, string> = {
-      text: 'flow-display-text',
-      label: 'flow-display-label',
-      textarea: 'flow-display-textarea',
-      date: 'flow-display-date',
-      datetime: 'flow-display-datetime',
-      badge: 'flow-display-badge',
-      link: 'flow-display-link',
-      cards: 'flow-display-cards',
-      timeline: 'flow-display-timeline',
-      selectUsers: 'flow-display-select-users',
-      custom: 'flow-display-custom',
-    }
+function resolveRegisteredComponent(name: string) {
+  const resolved = FlowDisplayRegistry.get(name)
+  !resolved && console.warn(`DisplayFieldRenderer: '${name}' não encontrado no FlowDisplayRegistry`)
+  return resolved ?? FlowDisplayRegistry.get('flow-display-custom') ?? null
+}
 
-    const name = typeMap[props.field.type] ?? 'flow-display-custom'
-    const registered = FlowDisplayRegistry.get(name)
-
-    if (!registered) {
-      console.warn(`DisplayFieldRenderer: '${name}' não encontrado no FlowDisplayRegistry`)
-      return FlowDisplayRegistry.get('flow-display-custom') ?? null
-    }
-
-    return registered
-  }
-
-  const registered = FlowDisplayRegistry.get(override)
-
-  if (!registered) {
-    console.warn(`DisplayFieldRenderer: '${override}' não encontrado no FlowDisplayRegistry`)
-    return FlowDisplayRegistry.get('flow-display-custom') ?? null
-  }
-
-  return registered
-})
+const componentName = computed(() => props.field.component ?? typeMap[props.field.type] ?? 'flow-display-custom')
+const component = computed(() => resolveRegisteredComponent(componentName.value))
 </script>
 
 <template>

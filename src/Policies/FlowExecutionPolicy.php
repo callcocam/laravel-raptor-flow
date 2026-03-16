@@ -12,9 +12,8 @@ use Illuminate\Contracts\Auth\Authenticatable;
  * - start: execução Pending e usuário elegível (suggested_responsible, participants ou role via config).
  * - pause: apenas execução InProgress.
  * - resume: apenas execução Paused.
- * - move, assign, abandon, notes: execução InProgress/Paused e usuário é o responsável (ou admin).
- * - Role gate: se FlowConfigStep.default_role_id estiver definida, bloqueia todos os usuários sem a role,
- *   inclusive administradores. Sem bypass.
+ * - move, assign, abandon, notes: execução InProgress/Paused e usuário é o responsável.
+ * - Ordem de autorização: role da etapa -> participante da etapa -> status -> responsável (quando aplicável).
  *
  * Crie App\Policies\FlowExecutionPolicy apenas em casos bem específicos; o padrão já cobre role e responsáveis.
  */
@@ -30,15 +29,15 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             return false;
         }
 
-        if ($this->hasAdminPermission($user)) {
-            return true;
+        if (! $this->canUserParticipateInStep($user, $execution)) {
+            return false;
         }
 
         if ($execution->status !== FlowStatus::Pending) {
             return false;
         }
 
-        return $this->isEligibleToStart($user, $execution);
+        return true;
     }
 
     public function move(Authenticatable $user, FlowExecution $execution): bool
@@ -101,12 +100,12 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             return false;
         }
 
-        if ($execution->status !== FlowStatus::InProgress && $execution->status !== FlowStatus::Paused) {
+        if (! $this->canUserParticipateInStep($user, $execution)) {
             return false;
         }
 
-        if ($this->hasAdminPermission($user)) {
-            return true;
+        if ($execution->status !== FlowStatus::InProgress && $execution->status !== FlowStatus::Paused) {
+            return false;
         }
 
         $responsibleId = $execution->current_responsible_id;
@@ -116,6 +115,7 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
 
         return (string) $responsibleId === (string) $user->getAuthIdentifier();
     }
+
     protected function canActAsResponsibleInStatus(Authenticatable $user, FlowExecution $execution, FlowStatus $requiredStatus): bool
     {
         if ($user === null) {
@@ -126,8 +126,8 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             return false;
         }
 
-        if ($this->hasAdminPermission($user)) {
-            return $execution->status === $requiredStatus;
+        if (! $this->canUserParticipateInStep($user, $execution)) {
+            return false;
         }
 
         if ($execution->status !== $requiredStatus) {
@@ -162,7 +162,7 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
         return (bool) $checkRole($user, $step->default_role_id);
     }
 
-    protected function isEligibleToStart(Authenticatable $user, FlowExecution $execution): bool
+    protected function canUserParticipateInStep(Authenticatable $user, FlowExecution $execution): bool
     {
         $execution->loadMissing('configStep.participants');
         $step = $execution->configStep;
@@ -177,21 +177,10 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             return true;
         }
 
-        if ($step->relationLoaded('participants') && $step->participants->contains('user_id', $userId)) {
-            return true;
+        if ($step->relationLoaded('participants')) {
+            return $step->participants->contains('user_id', $userId);
         }
 
         return $step->participants()->where('user_id', $userId)->exists();
-    }
-
-    protected function hasAdminPermission(Authenticatable $user): bool
-    {
-        if (! method_exists($user, 'can')) {
-            return false;
-        }
-
-        $permission = config('flow.policy.admin_permission', 'flow.execution.admin');
-
-        return $user->can($permission);
     }
 }

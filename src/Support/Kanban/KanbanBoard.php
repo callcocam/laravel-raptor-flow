@@ -399,6 +399,7 @@ class KanbanBoard
                 'workflow_step_template_id' => $execution->flow_step_template_id,
                 'flow_config_step_id' => $execution->flow_config_step_id,
                 'status' => $status,
+                'status_presentation' => $this->getStatusPresentation($status),
                 'current_responsible_id' => $execution->current_responsible_id,
                 'execution_started_by' => $execution->execution_started_by,
                 'started_at' => $execution->started_at?->toIso8601String(),
@@ -506,5 +507,50 @@ class KanbanBoard
     protected function getFilter(string $key, mixed $default = null): mixed
     {
         return $this->filters[$key] ?? $default;
+    }
+
+    /**
+     * @return array{label: string, icon: string, class: string}
+     */
+    protected function getStatusPresentation(string $status): array
+    {
+        $config = [
+            'pending' => [
+                'label' => 'Pendente',
+                'icon' => 'AlertCircle',
+                'class' => 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200',
+            ],
+            'in_progress' => [
+                'label' => 'Em Andamento',
+                'icon' => 'Play',
+                'class' => 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200',
+            ],
+            'completed' => [
+                'label' => 'Concluida',
+                'icon' => 'CheckCircle',
+                'class' => 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200',
+            ],
+            'blocked' => [
+                'label' => 'Bloqueada',
+                'icon' => 'XCircle',
+                'class' => 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
+            ],
+            'paused' => [
+                'label' => 'Pausada',
+                'icon' => 'Pause',
+                'class' => 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
+            ],
+            'skipped' => [
+                'label' => 'Pulada',
+                'icon' => 'XCircle',
+                'class' => 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
+            ],
+        ];
+
+        return $config[$status] ?? [
+            'label' => $status,
+            'icon' => 'AlertCircle',
+            'class' => 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
+        ];
     }
 }
