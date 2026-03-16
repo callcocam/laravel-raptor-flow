@@ -9,6 +9,7 @@ use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Routing\Controller;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -54,9 +55,17 @@ class FlowExecutionController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $toStep = FlowConfigStep::find($validated['to_step_id']); 
+        $toStep = $this->resolveDestinationStep($execution, $validated['to_step_id']);
+        Log::info('Iniciando movimento de execução', [
+            'execution_id' => $execution->id,
+            'from_step_id' => $execution->flow_step_template_id,
+            'to_step_id' => $validated['to_step_id'],
+            'resolved_flow_config_step_id' => $toStep?->id,
+            'resolved_flow_step_template_id' => $toStep?->flow_step_template_id,
+            'user_id' => auth()->id(),
+        ]);
         if (! $toStep) {
-            return redirect()->back()->with('error', 'Etapa de destino inválida.');
+            return redirect()->back()->with('error', 'Etapa de destino inválida para este workflow.');
         }
 
         $user = auth()->id();
@@ -181,5 +190,28 @@ class FlowExecutionController extends Controller
         } catch (ValidationException $e) {
             return redirect()->back()->withErrors($e->errors());
         }
+    }
+
+    protected function resolveDestinationStep(FlowExecution $execution, string $toStepId): ?FlowConfigStep
+    {
+        $stepByConfigId = FlowConfigStep::query()->find($toStepId);
+
+        if ($stepByConfigId) {
+            return $stepByConfigId;
+        }
+
+        $execution->loadMissing('configStep');
+        $fromStep = $execution->configStep;
+
+        if (! $fromStep) {
+            return null;
+        }
+
+        return FlowConfigStep::query()
+            ->where('configurable_type', $fromStep->configurable_type)
+            ->where('configurable_id', $fromStep->configurable_id)
+            ->where('flow_step_template_id', $toStepId)
+            ->where('is_active', true)
+            ->first();
     }
 }

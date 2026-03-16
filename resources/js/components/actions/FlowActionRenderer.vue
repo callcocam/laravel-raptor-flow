@@ -54,6 +54,7 @@ const component = computed(() => {
 
 function handleExecute(notes?: string): void {
   const resolvedUrl = resolveActionUrl(props.action.url ?? '', props.execution)
+  console.log('Resolved URL:', resolvedUrl)
   const didExecute = executeFlowAction(props.action, props.execution, {
     notes,
     preserveState: false,
