@@ -326,6 +326,13 @@ class FlowManager
         $estimatedDays = (int) ($toStep->estimated_duration_days ?? 2);
         $newSlaDate = $estimatedDays > 0 ? $transitionedAt->copy()->addDays($estimatedDays) : null;
 
+        $this->recordFlowMetricService()->recordStepTransitionMetric(
+            $execution,
+            $fromStep,
+            $toStep,
+            $transitionedAt,
+        );
+
         $execution->update([
             'flow_config_step_id' => $toStep->id,
             'flow_step_template_id' => $toStep->flow_step_template_id,
@@ -351,13 +358,6 @@ class FlowManager
             'notes' => $notes,
             'snapshot' => $snapshotBefore,
         ]);
-
-        $this->recordFlowMetricService()->recordStepTransitionMetric(
-            $execution,
-            $fromStep,
-            $toStep,
-            $transitionedAt,
-        );
 
         $this->flowNotificationService()->notifyMoved(
             $execution,

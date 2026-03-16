@@ -2,6 +2,7 @@ export * from './components/kanban'
 export * from './types/kanban'
 export * from './types/display'
 export * from './types/detailModal'
+export { default as FlowReportChart } from './components/charts/FlowReportChart.vue'
 
 // Plugin e registries
 export { FlowRaptorPlugin, FlowActionRegistry, FlowDisplayRegistry } from './flow/index'
