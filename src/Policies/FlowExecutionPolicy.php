@@ -62,7 +62,7 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
 
     public function abandon(Authenticatable $user, FlowExecution $execution): bool
     {
-        return $this->canActAsResponsible($user, $execution);
+        return $this->canActAsResponsibleInStatus($user, $execution, FlowStatus::InProgress);
     }
 
     public function notes(Authenticatable $user, FlowExecution $execution): bool
