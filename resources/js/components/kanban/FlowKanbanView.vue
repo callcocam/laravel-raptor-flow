@@ -156,7 +156,7 @@ function handleModalAction(
 
 <template>
   <div class="flex h-full flex-col">
-    <div class="border-b border-border bg-background">
+    <div class="border-b border-border bg-background px-4">
       <FlowKanbanHeader
         :title="title"
         :description="description"

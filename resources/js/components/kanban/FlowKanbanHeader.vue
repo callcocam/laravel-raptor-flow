@@ -23,17 +23,7 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <div class="bg-card px-1 py-1">
-    <div v-if="title || description || $slots.actions" class="mb-4 flex items-center justify-between">
-      <div>
-        <h1 v-if="title" class="text-2xl font-bold tracking-tight text-foreground">{{ title }}</h1>
-        <p v-if="description" class="text-sm text-muted-foreground">{{ description }}</p>
-      </div>
-      <div class="flex items-center gap-2">
-        <slot name="actions" />
-      </div>
-    </div>
-
+  <div class=" px-1 py-1"> 
     <FlowKanbanFilters
       v-if="showFilters && filterConfigs && filterConfigs.length > 0"
       :filter-configs="filterConfigs"
