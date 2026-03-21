@@ -68,8 +68,8 @@ watch(
 <template>
   <div
     v-if="filterConfigs.length > 0"
-    class="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3"
-  >
+    class="flex flex-wrap items-end gap-3 rounded-lg border border-border bg-muted/30 px-4 py-3  m-x-4 mb-4 mt-2 "
+  > asdasda
     <div
       v-for="filter in filterConfigs"
       :key="filter.name"
