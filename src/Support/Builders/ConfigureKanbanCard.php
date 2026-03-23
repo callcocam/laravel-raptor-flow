@@ -68,7 +68,9 @@ class ConfigureKanbanCard
     public function resolveActionsForExecution(FlowExecution $execution): array
     {
         return array_values(array_map(
-            fn (FlowAction $action) => $action->toArray($execution),
+            fn (FlowAction $action) => $action
+                    ->target('_blank')
+                    ->component('flow-action-link')->toArray($execution),
             array_filter($this->actions, fn (FlowAction $action) => $action->isVisible($execution)),
         ));
     }
