@@ -49,6 +49,8 @@ abstract class FlowAction
 
     protected ?array $confirm = null;
 
+    protected string $target = '_self';
+
     protected array $data = [];
 
     protected bool|Closure $visible = true;
@@ -90,6 +92,18 @@ abstract class FlowAction
         ];
 
         return $this;
+    }
+
+    public function target(string $target): static
+    {
+        $this->target = $target;
+
+        return $this;
+    }
+
+    public function targetBlank(): static
+    {
+        return $this->target('_blank');
     }
 
     /**
@@ -196,6 +210,7 @@ abstract class FlowAction
             'confirm' => $this->confirm,
             'data' => $this->data,
             'component' => $this->evaluateConfiguredValue($this->component, $target),
+            'target' => $this->target,
         ];
     }
 }
