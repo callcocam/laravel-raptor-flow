@@ -12,8 +12,7 @@ use Callcocam\LaravelRaptorFlow\Services\FlowManager;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Routing\Controller;
-use Illuminate\Support\Facades\Log;
+use Illuminate\Routing\Controller; 
 use Illuminate\Validation\ValidationException;
 
 /**
@@ -59,15 +58,7 @@ class FlowExecutionController extends Controller
             'notes' => ['nullable', 'string', 'max:500'],
         ]);
 
-        $toStep = $this->resolveDestinationStep($execution, $validated['to_step_id']);
-        Log::info('Iniciando movimento de execução', [
-            'execution_id' => $execution->id,
-            'from_step_id' => $execution->flow_step_template_id,
-            'to_step_id' => $validated['to_step_id'],
-            'resolved_flow_config_step_id' => $toStep?->id,
-            'resolved_flow_step_template_id' => $toStep?->flow_step_template_id,
-            'user_id' => auth()->id(),
-        ]);
+        $toStep = $this->resolveDestinationStep($execution, $validated['to_step_id']); // Tenta resolver por ID de configuração ou por template+configurável
         if (! $toStep) {
             return redirect()->back()->with('error', 'Etapa de destino inválida para este workflow.');
         }
@@ -171,6 +162,27 @@ class FlowExecutionController extends Controller
             $this->flowManager->abandonExecution($execution, $user);
 
             return redirect()->back()->with('success', 'Responsabilidade liberada com sucesso.');
+        } catch (ValidationException $e) {
+            return redirect()->back()->withErrors($e->errors());
+        }
+    }
+
+    /**
+     * Finaliza a execução (transição para Concluído).
+     */
+    public function finish(FlowExecution $execution): RedirectResponse
+    {
+        $this->authorize('finish', $execution);
+
+        $user = auth()->id();
+        if (! $user) {
+            return redirect()->back()->with('error', 'Usuário não autenticado.');
+        }
+
+        try {
+            $this->flowManager->finishExecution($execution, $user);
+
+            return redirect()->back()->with('success', 'Execução finalizada com sucesso.');
         } catch (ValidationException $e) {
             return redirect()->back()->withErrors($e->errors());
         }

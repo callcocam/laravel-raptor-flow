@@ -5,6 +5,7 @@ import type { FlowKanbanExecution } from '../../types/kanban';
 import { resolveDisplayValue } from '../../composables/display';
 import FlowActionRenderer from '../actions/FlowActionRenderer.vue';
 import DisplayFieldRenderer from './DisplayFieldRenderer.vue';
+import { CheckCircle2, Flag } from 'lucide-vue-next';
 import { computed, inject, ref, type Ref } from 'vue';
 
 interface Props {
@@ -33,6 +34,8 @@ const currentDragData = inject<Ref<{ groupId: string; fromStepId: string } | nul
 const canDrag = computed(() => {
   return Boolean(props.execution.action_visibility?.move);
 });
+
+const isLastWorkflowStep = computed(() => props.execution.templateNextStep == null);
 
 function hasFieldValue(value: unknown): boolean {
   if (value === null || value === undefined || value === '') {
@@ -162,6 +165,11 @@ function handleActionExecuted() {
     @dragend="handleDragEnd"
   >
     <div class="space-y-3">
+      <div v-if="isLastWorkflowStep" class="flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/40 dark:text-emerald-300">
+        <Flag class="h-4 w-4 shrink-0" />
+        <span class="text-xs font-semibold uppercase tracking-wide">Ultima etapa do workflow</span>
+      </div>
+
       <div v-for="column in configuredColumns" :key="column.id" class="space-y-2">
         <p v-if="column.label" class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           {{ column.label }}
@@ -201,6 +209,14 @@ function handleActionExecuted() {
       />
 
       <slot v-if="shouldRenderLegacySlot" name="actions" :execution="execution" />
+
+      <span
+        v-if="isLastWorkflowStep"
+        class="inline-flex h-8 items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 text-xs font-medium text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/40 dark:text-emerald-300"
+      >
+        <CheckCircle2 class="h-3.5 w-3.5" />
+        Etapa final
+      </span>
     </div>
 
     <div v-if="secondaryRenderedActions.length" class="mt-2 flex flex-wrap items-center gap-2">

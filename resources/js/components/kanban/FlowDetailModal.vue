@@ -14,7 +14,7 @@ import NoteBlockRenderer from './NoteBlockRenderer.vue'
 import type { DetailModalConfig, DetailModalLinkConfig, FlowActionSchema } from '../../types/detailModal'
 import type { DisplayRowConfig, DisplaySectionConfig } from '../../types/display'
 import type { FlowKanbanExecution, FlowKanbanStep } from '../../types/kanban'
-import { AlertCircle, CheckCircle, Clock, ExternalLink, Pause, Play, XCircle } from 'lucide-vue-next'
+import { AlertCircle, CheckCircle, CheckCircle2, Clock, ExternalLink, Flag, Pause, Play, XCircle } from 'lucide-vue-next'
 import { computed } from 'vue'
 
 interface Props {
@@ -131,6 +131,8 @@ const timelineSteps = computed(() => {
   return props.steps ?? []
 })
 
+const isLastWorkflowStep = computed(() => props.execution?.templateNextStep == null)
+
 // --- Handlers ---
 function handleClose() {
   emit('close')
@@ -234,6 +236,13 @@ function handleNoteSave(note: { id: string; label: string; url: string; placehol
             <Clock class="h-3 w-3" />
             SLA Atrasado
           </span>
+          <span
+            v-if="isLastWorkflowStep"
+            class="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200"
+          >
+            <Flag class="h-3 w-3" />
+            Etapa final do workflow
+          </span>
         </div>
       </DialogHeader>
 
@@ -251,6 +260,14 @@ function handleNoteSave(note: { id: string; label: string; url: string; placehol
                 <h3 v-if="section.label" class="text-sm font-semibold text-foreground">
                   {{ section.label }}
                 </h3>
+
+                <div
+                  v-if="section.id === 'timeline' && isLastWorkflowStep"
+                  class="inline-flex items-center gap-2 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-900/80 dark:bg-emerald-950/40 dark:text-emerald-300"
+                >
+                  <CheckCircle2 class="h-4 w-4" />
+                  Esta execucao esta posicionada na ultima etapa do workflow.
+                </div>
 
                 <div class="space-y-4">
                   <div v-for="(row, rowIndex) in getSectionRows(section)" :key="`${section.id}-${rowIndex}`" class="space-y-3">

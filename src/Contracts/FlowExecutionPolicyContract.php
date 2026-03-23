@@ -31,4 +31,6 @@ interface FlowExecutionPolicyContract
     public function abandon(Authenticatable $user, FlowExecution $execution): bool;
 
     public function notes(Authenticatable $user, FlowExecution $execution): bool;
+
+    public function finish(Authenticatable $user, FlowExecution $execution): bool;
 }

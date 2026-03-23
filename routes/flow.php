@@ -28,4 +28,5 @@ Route::prefix('executions/{execution}')->name('flow.execution.')->group(function
     Route::post('assign', [FlowExecutionController::class, 'assign'])->name('assign');
     Route::post('abandon', [FlowExecutionController::class, 'abandon'])->name('abandon');
     Route::post('notes', [FlowExecutionController::class, 'notes'])->name('notes');
+    Route::post('finish', [FlowExecutionController::class, 'finish'])->name('finish');
 });

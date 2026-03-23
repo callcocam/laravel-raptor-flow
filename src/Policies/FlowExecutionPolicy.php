@@ -8,6 +8,7 @@ namespace Callcocam\LaravelRaptorFlow\Policies;
 
 use Callcocam\LaravelRaptorFlow\Contracts\FlowExecutionPolicyContract;
 use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
+use Callcocam\LaravelRaptorFlow\Models\FlowConfigStep;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Illuminate\Contracts\Auth\Authenticatable;
 
@@ -74,6 +75,12 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
         return $this->canActAsResponsible($user, $execution);
     }
 
+    public function finish(Authenticatable $user, FlowExecution $execution): bool
+    {
+        return $this->canActAsResponsibleInStatus($user, $execution, FlowStatus::InProgress)
+            && $this->isLastExecutionStep($execution);
+    }
+
     /**
      * Retorna as abilities por execução para o frontend (ex.: payload do Kanban).
      *
@@ -91,6 +98,7 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             'can_assign' => $policy->assign($user, $execution),
             'can_abandon' => $policy->abandon($user, $execution),
             'can_notes' => $policy->notes($user, $execution),
+            'can_finish' => $policy->finish($user, $execution),
         ];
     }
 
@@ -145,6 +153,24 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
 
         return (string) $responsibleId === (string) $user->getAuthIdentifier();
     }
+
+    protected function isLastExecutionStep(FlowExecution $execution): bool
+    {
+        $execution->loadMissing('configStep');
+
+        $currentStep = $execution->configStep;
+        if (! $currentStep || $currentStep->order === null) {
+            return false;
+        }
+
+        return ! FlowConfigStep::query()
+            ->where('configurable_type', $currentStep->configurable_type)
+            ->where('configurable_id', $currentStep->configurable_id)
+            ->where('is_active', true)
+            ->where('order', '>', (int) $currentStep->order)
+            ->exists();
+    }
+
     /**
      * Verifica se o usuário atende à role obrigatória da etapa.
      * Quando default_role_id está definido, bloqueia usuários sem a role — sem bypass de admin.

@@ -571,6 +571,57 @@ class FlowManager
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
+    /**
+     * Finaliza uma execução em andamento (transição para Concluído).
+     */
+    public function finishExecution(FlowExecution $execution, string|int $finishedByUserId): FlowExecution
+    {
+        if ($execution->status !== FlowStatus::InProgress) {
+            throw ValidationException::withMessages([
+                'execution' => 'Apenas execuções em andamento podem ser finalizadas.',
+            ]);
+        }
+
+        if ($execution->current_responsible_id != $finishedByUserId) {
+            throw ValidationException::withMessages([
+                'user_id' => 'Apenas o responsável atual pode finalizar a execução.',
+            ]);
+        }
+
+        $execution->loadMissing('configStep');
+        $currentStep = $execution->configStep;
+
+        if (! $currentStep || $currentStep->order === null) {
+            throw ValidationException::withMessages([
+                'execution' => 'Não foi possível determinar a etapa atual da execução.',
+            ]);
+        }
+
+        $hasNextStep = FlowConfigStep::query()
+            ->where('configurable_type', $currentStep->configurable_type)
+            ->where('configurable_id', $currentStep->configurable_id)
+            ->where('is_active', true)
+            ->where('order', '>', (int) $currentStep->order)
+            ->exists();
+
+        if ($hasNextStep) {
+            throw ValidationException::withMessages([
+                'execution' => 'A execução só pode ser finalizada na última etapa do workflow.',
+            ]);
+        }
+
+        $execution->update([
+            'status' => FlowStatus::Completed,
+            'completed_at' => now(),
+        ]);
+
+        $this->recordFlowHistoryService()->record($execution, FlowAction::Complete, [
+            'user_id' => $finishedByUserId,
+        ]);
+
+        return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
     public function updateExecutionNotes(FlowExecution $execution, string $notes): FlowExecution
     {
         $execution->update(['notes' => $notes]);
