@@ -22,6 +22,7 @@ import type { FlowKanbanCardConfig } from '../../types/display';
 import { computed, ref } from 'vue';
 
 const ROUTER_OPTIONS = { preserveState: false, preserveScroll: false };
+const FILTER_ROUTER_OPTIONS = { preserveState: true, preserveScroll: true, replace: true };
 
 interface Props {
   board: FlowKanbanBoardPayload;
@@ -117,10 +118,16 @@ function handleCloseDetail() {
 }
 
 function handleApplyFilters(filters: Record<string, unknown>) {
+  const sanitizedFilters = Object.fromEntries(
+    Object.entries(filters).filter(([, value]) => value !== null && value !== undefined && value !== '')
+  );
+
+  router.get(window.location.pathname, sanitizedFilters, FILTER_ROUTER_OPTIONS);
   emit('filters-applied', filters);
 }
 
 function handleClearFilters() {
+  router.get(window.location.pathname, {}, FILTER_ROUTER_OPTIONS);
   emit('filters-cleared');
 }
 
