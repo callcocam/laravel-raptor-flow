@@ -2,7 +2,6 @@
 import FlowKanbanColumn from './FlowKanbanColumn.vue';
 import type {
   FlowKanbanExecution,
-  FlowKanbanBoardMeta,
   FlowKanbanGroupConfig,
   FlowKanbanStep,
 } from '../../types/kanban';

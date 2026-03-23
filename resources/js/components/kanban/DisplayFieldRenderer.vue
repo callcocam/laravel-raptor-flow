@@ -37,7 +37,9 @@ const fieldValue = computed(() => resolveFieldValue(props.execution, props.field
 
 function resolveRegisteredComponent(name: string) {
   const resolved = FlowDisplayRegistry.get(name)
-  !resolved && console.warn(`DisplayFieldRenderer: '${name}' não encontrado no FlowDisplayRegistry`)
+  if (!resolved) {
+    console.warn(`DisplayFieldRenderer: '${name}' não encontrado no FlowDisplayRegistry`)
+  }
   return resolved ?? FlowDisplayRegistry.get('flow-display-custom') ?? null
 }
 
