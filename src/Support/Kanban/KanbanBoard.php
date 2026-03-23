@@ -360,7 +360,7 @@ class KanbanBoard
                 ->whereNotIn('status', [FlowStatus::Completed, FlowStatus::Skipped]);
         }
 
-        if (! $this->getFilter('show_completed', false)) {
+        if (! $this->hasFilter('status') && ! $this->getFilter('show_completed', false)) {
             $query->where('status', '!=', FlowStatus::Completed);
         }
 
