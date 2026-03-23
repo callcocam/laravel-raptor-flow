@@ -8,8 +8,8 @@ namespace Callcocam\LaravelRaptorFlow\Policies;
 
 use Callcocam\LaravelRaptorFlow\Contracts\FlowExecutionPolicyContract;
 use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
-use Callcocam\LaravelRaptorFlow\Models\FlowConfigStep;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
+use Callcocam\LaravelRaptorFlow\Services\WorkflowStepNavigator;
 use Illuminate\Contracts\Auth\Authenticatable;
 
 /**
@@ -163,12 +163,7 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             return false;
         }
 
-        return ! FlowConfigStep::query()
-            ->where('configurable_type', $currentStep->configurable_type)
-            ->where('configurable_id', $currentStep->configurable_id)
-            ->where('is_active', true)
-            ->where('order', '>', (int) $currentStep->order)
-            ->exists();
+        return app(WorkflowStepNavigator::class)->isLastStep($currentStep);
     }
 
     /**

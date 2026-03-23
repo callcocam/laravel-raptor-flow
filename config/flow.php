@@ -78,4 +78,18 @@ return [
         'admin_permission' => 'flow.execution.admin',
         'check_role' => null,
     ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Eventos de domínio
+    |--------------------------------------------------------------------------
+    |
+    | Permite ao app registrar um subscriber para ouvir FlowExecutionActionOccurred
+    | sem alterar o package. Se disabled ou subscriber inválido, o package ignora.
+    |
+    */
+    'events' => [
+        'enabled' => false,
+        'subscriber' => null,
+    ],
 ];

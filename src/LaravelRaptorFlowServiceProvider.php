@@ -10,6 +10,7 @@ use Callcocam\LaravelRaptorFlow\Commands\LaravelRaptorFlowCommand;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Callcocam\LaravelRaptorFlow\Policies\FlowExecutionPolicy;
 use Illuminate\Support\Facades\Config;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Route;
 use Spatie\LaravelPackageTools\Package;
@@ -49,6 +50,7 @@ class LaravelRaptorFlowServiceProvider extends PackageServiceProvider
 
         $this->registerFlowRoutes();
         $this->registerPolicies();
+        $this->registerConfiguredSubscribers();
     }
 
     protected function registerPolicies(): void
@@ -68,5 +70,21 @@ class LaravelRaptorFlowServiceProvider extends PackageServiceProvider
         Route::middleware($middleware)
             ->prefix($prefix)
             ->group($routeFile);
+    }
+
+    protected function registerConfiguredSubscribers(): void
+    {
+        $enabled = (bool) config('flow.events.enabled', false);
+        if (! $enabled) {
+            return;
+        }
+
+        $subscriber = config('flow.events.subscriber');
+
+        if (! is_string($subscriber) || ! class_exists($subscriber)) {
+            return;
+        }
+
+        Event::subscribe($subscriber);
     }
 }

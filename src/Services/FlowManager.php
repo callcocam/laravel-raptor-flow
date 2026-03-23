@@ -9,6 +9,7 @@ namespace Callcocam\LaravelRaptorFlow\Services;
 use Callcocam\LaravelRaptorFlow\Contracts\Workable;
 use Callcocam\LaravelRaptorFlow\Enums\FlowAction;
 use Callcocam\LaravelRaptorFlow\Enums\FlowStatus;
+use Callcocam\LaravelRaptorFlow\Events\FlowExecutionActionOccurred;
 use Callcocam\LaravelRaptorFlow\Models\FlowConfigStep;
 use Callcocam\LaravelRaptorFlow\Models\FlowExecution;
 use Callcocam\LaravelRaptorFlow\Models\FlowParticipant;
@@ -239,6 +240,13 @@ class FlowManager
             'Você iniciou e assumiu esta execução do workflow.',
         );
 
+        $this->dispatchExecutionActionOccurred(
+            $execution,
+            FlowAction::Start,
+            $startedByUserId,
+            toStepId: (string) $firstStep->id,
+        );
+
         return $execution->load(['configStep', 'stepTemplate']);
     }
 
@@ -381,6 +389,17 @@ class FlowManager
             ],
         );
 
+        $this->dispatchExecutionActionOccurred(
+            $execution,
+            FlowAction::Move,
+            $movedByUserId,
+            fromStepId: (string) $fromStep->id,
+            toStepId: (string) $toStep->id,
+            metadata: [
+                'notes' => $notes,
+            ],
+        );
+
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
@@ -455,6 +474,13 @@ class FlowManager
             'Você assumiu uma execução pendente do workflow.',
         );
 
+        $this->dispatchExecutionActionOccurred(
+            $execution,
+            FlowAction::Start,
+            $startedByUserId,
+            toStepId: (string) $firstStep->id,
+        );
+
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
@@ -474,6 +500,8 @@ class FlowManager
         $this->recordFlowHistoryService()->record($execution, FlowAction::Pause, [
             'user_id' => $pausedByUserId,
         ]);
+
+        $this->dispatchExecutionActionOccurred($execution, FlowAction::Pause, $pausedByUserId);
 
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
@@ -498,6 +526,8 @@ class FlowManager
         $this->recordFlowHistoryService()->record($execution, FlowAction::Resume, [
             'user_id' => $resumedByUserId,
         ]);
+
+        $this->dispatchExecutionActionOccurred($execution, FlowAction::Resume, $resumedByUserId);
 
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
@@ -539,6 +569,17 @@ class FlowManager
             ],
         );
 
+        $this->dispatchExecutionActionOccurred(
+            $execution,
+            FlowAction::Reassign,
+            $assignedByUserId,
+            metadata: [
+                'new_responsible_id' => (string) $assignedToUserId,
+                'previous_responsible_id' => $previousResponsibleId ? (string) $previousResponsibleId : null,
+                'notes' => $notes,
+            ],
+        );
+
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
@@ -567,6 +608,15 @@ class FlowManager
             'user_id' => $abandonedByUserId,
             'previous_responsible_id' => $previousResponsibleId,
         ]);
+
+        $this->dispatchExecutionActionOccurred(
+            $execution,
+            FlowAction::Abandon,
+            $abandonedByUserId,
+            metadata: [
+                'previous_responsible_id' => $previousResponsibleId ? (string) $previousResponsibleId : null,
+            ],
+        );
 
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
@@ -597,12 +647,7 @@ class FlowManager
             ]);
         }
 
-        $hasNextStep = FlowConfigStep::query()
-            ->where('configurable_type', $currentStep->configurable_type)
-            ->where('configurable_id', $currentStep->configurable_id)
-            ->where('is_active', true)
-            ->where('order', '>', (int) $currentStep->order)
-            ->exists();
+        $hasNextStep = app(WorkflowStepNavigator::class)->hasNextStep($currentStep);
 
         if ($hasNextStep) {
             throw ValidationException::withMessages([
@@ -619,6 +664,8 @@ class FlowManager
             'user_id' => $finishedByUserId,
         ]);
 
+        $this->dispatchExecutionActionOccurred($execution, FlowAction::Complete, $finishedByUserId);
+
         return $execution->fresh(['configStep', 'stepTemplate']);
     }
 
@@ -626,7 +673,36 @@ class FlowManager
     {
         $execution->update(['notes' => $notes]);
 
+        $this->dispatchExecutionActionOccurred(
+            $execution,
+            'notes',
+            auth()->id(),
+            metadata: ['notes' => $notes],
+        );
+
         return $execution->fresh(['configStep', 'stepTemplate']);
+    }
+
+    /**
+     * @param  FlowAction|string  $action
+     * @param  array<string, mixed>  $metadata
+     */
+    protected function dispatchExecutionActionOccurred(
+        FlowExecution $execution,
+        FlowAction|string $action,
+        string|int|null $actorId = null,
+        ?string $fromStepId = null,
+        ?string $toStepId = null,
+        array $metadata = [],
+    ): void {
+        event(new FlowExecutionActionOccurred(
+            execution: $execution,
+            action: $action instanceof FlowAction ? $action->value : $action,
+            actorId: $actorId !== null ? (string) $actorId : null,
+            fromStepId: $fromStepId,
+            toStepId: $toStepId,
+            metadata: $metadata,
+        ));
     }
 
     protected function ensureUserMatchesStepDefaultRole(FlowExecution $execution, string|int $userId): void
