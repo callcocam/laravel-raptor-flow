@@ -38,6 +38,7 @@ export interface FlowActionSchema {
   component?: string | null;
   /** Apenas para type 'notes' */
   placeholder?: string;
+  target?: '_self' | '_blank' | undefined;
 }
 
 export interface DetailModalConfig {

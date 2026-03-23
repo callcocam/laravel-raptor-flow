@@ -23,7 +23,7 @@ const href = computed(() =>
     resolveActionUrl(props.action.url ?? '#', props.execution),
 );
 const isExternal = computed(() => {
-    if (props.target === '_blank') {
+    if (props.action.target === '_blank') {
         return true;
     }
     const externalFromData = props.action.data?.external;
