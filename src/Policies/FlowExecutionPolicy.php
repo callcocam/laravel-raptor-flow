@@ -196,8 +196,7 @@ class FlowExecutionPolicy implements FlowExecutionPolicyContract
             return false;
         }
 
-        $userId = (string) $user->getAuthIdentifier();
-
+        $userId = (string) $user->getAuthIdentifier(); 
         if ($step->suggested_responsible_id && (string) $step->suggested_responsible_id === $userId) {
             return true;
         }

@@ -149,6 +149,22 @@ class FlowManager
             if (! $template) {
                 continue;
             }
+
+            $resolvedUsers = $this->normalizeUsers($stepData['users'] ?? []);
+            if ($resolvedUsers === []) {
+                $resolvedUsers = $this->normalizeUsers($template->users ?? []);
+            }
+
+            $defaultRoleId = $stepData['default_role_id'] ?? $template->default_role_id ?? null;
+            if ($resolvedUsers === [] && $defaultRoleId) {
+                $resolvedUsers = $this->resolveUsersByDefaultRole((string) $defaultRoleId);
+            }
+
+            $suggestedResponsibleId = $stepData['suggested_responsible_id'] ?? null;
+            if (empty($suggestedResponsibleId)) {
+                $suggestedResponsibleId = $resolvedUsers[0] ?? null;
+            }
+
             $configStep = FlowConfigStep::updateOrCreate(
                 [
                     'configurable_type' => get_class($configurable),
@@ -159,15 +175,74 @@ class FlowManager
                     'name' => $template->name,
                     'description' => $template->description,
                     'order' => $order++,
-                    'default_role_id' => $stepData['default_role_id'] ?? $template->default_role_id,
-                    'suggested_responsible_id' => $stepData['suggested_responsible_id'] ?? null,
+                    'default_role_id' => $defaultRoleId,
+                    'suggested_responsible_id' => $suggestedResponsibleId,
                     'estimated_duration_days' => $stepData['estimated_duration_days'] ?? $template->estimated_duration_days ?? 2,
                     'is_required' => true,
                     'is_active' => true,
                 ]
             );
 
-            $this->syncDefaultStepParticipantsService()->syncForStep($configStep, $stepData['users'] ?? []);
+            $this->syncDefaultStepParticipantsService()->syncForStep($configStep, $resolvedUsers);
+        }
+    }
+
+    /**
+     * @param  mixed  $usersPayload
+     * @return array<int, string>
+     */
+    protected function normalizeUsers(mixed $usersPayload): array
+    {
+        if (is_null($usersPayload) || $usersPayload === '') {
+            return [];
+        }
+
+        if (is_string($usersPayload)) {
+            $usersPayload = str_contains($usersPayload, ',')
+                ? explode(',', $usersPayload)
+                : [$usersPayload];
+        }
+
+        if (! is_array($usersPayload)) {
+            $usersPayload = [$usersPayload];
+        }
+
+        return collect($usersPayload)
+            ->map(function ($value) {
+                if (is_array($value)) {
+                    return $value['id'] ?? $value['value'] ?? null;
+                }
+
+                return $value;
+            })
+            ->filter(fn ($value) => ! is_null($value) && $value !== '')
+            ->map(fn ($value) => (string) $value)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Resolve usuários da role padrão (default_role_id).
+     *
+     * @return array<int, string>
+     */
+    protected function resolveUsersByDefaultRole(string $defaultRoleId): array
+    {
+        $userModel = config('auth.providers.users.model');
+        if (! is_string($userModel) || ! class_exists($userModel)) {
+            return [];
+        }
+
+        try {
+            return $userModel::query()
+                ->whereHas('roles', fn ($query) => $query->where('roles.id', $defaultRoleId))
+                ->pluck('id')
+                ->map(fn ($id) => (string) $id)
+                ->values()
+                ->all();
+        } catch (\Throwable) {
+            return [];
         }
     }
 
